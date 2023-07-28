@@ -38,7 +38,7 @@ func TestType_IsValid(t *testing.T) {
 
 func TestNew(t *testing.T) {
 	type args struct {
-		typ  string
+		typ  Type
 		name string
 	}
 	tests := []struct {

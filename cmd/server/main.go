@@ -15,8 +15,12 @@ func main() {
 }
 
 func run() error {
-	storage := storage.NewMemStorage()
-	srv := server.New(storage)
+	srv := server.New(server.WithStorage(storage.NewMemStorage()))
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/", http.NotFound)
+	mux.Handle("/update/", http.StripPrefix("/update/", updateHandler(srv)))
+
 	log.Println("server starting")
-	return http.ListenAndServe("localhost:8080", srv.Serve())
+	return http.ListenAndServe("localhost:8080", mux)
 }

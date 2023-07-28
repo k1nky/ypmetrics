@@ -1,56 +1,35 @@
 package server
 
 import (
-	"net/http"
-	"strings"
-
 	"github.com/k1nky/ypmetrics/internal/metric"
 	"github.com/k1nky/ypmetrics/internal/storage"
 )
 
 type Server struct {
-	mux     *http.ServeMux
 	storage storage.Storage
 }
 
-func New(storage storage.Storage) *Server {
-	sl := &Server{
-		storage: storage,
-		mux:     http.NewServeMux(),
+type Option func(*Server)
+
+func WithStorage(storage storage.Storage) Option {
+	return func(s *Server) {
+		s.storage = storage
 	}
-
-	sl.mux.Handle("/update/", http.StripPrefix("/update/", http.HandlerFunc(sl.updateMetric)))
-	sl.mux.HandleFunc("/", http.NotFound)
-
-	return sl
 }
 
-func (sl *Server) Serve() *http.ServeMux {
-	return sl.mux
+func New(options ...Option) *Server {
+	s := &Server{}
+
+	for _, opt := range options {
+		opt(s)
+	}
+	if s.storage == nil {
+		s.storage = storage.NewMemStorage()
+	}
+
+	return s
 }
 
-func (sl *Server) updateMetric(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	sections := strings.Split(r.URL.Path, "/")
-	if len(sections) != 3 {
-		if len(sections) == 2 {
-			http.Error(w, "", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "", http.StatusBadRequest)
-		return
-	}
-	metric, err := metric.New(sections[0], sections[1])
-	if err != nil {
-		http.Error(w, "", http.StatusBadRequest)
-		return
-	}
-	if err := sl.storage.UpSet(metric, sections[2]); err != nil {
-		http.Error(w, "", http.StatusBadRequest)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
+func (s *Server) UpdateMetric(metric metric.Measure, value interface{}) error {
+	return s.storage.UpSet(metric, value)
 }

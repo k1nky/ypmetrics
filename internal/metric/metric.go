@@ -9,8 +9,8 @@ import (
 type Type string
 
 const (
-	TypeGauge   = "gauge"
-	TypeCounter = "counter"
+	TypeGauge   = Type("gauge")
+	TypeCounter = Type("counter")
 )
 
 type Measure interface {
@@ -42,7 +42,7 @@ func (t Type) IsValid() bool {
 	}
 }
 
-func New(typ, name string) (Measure, error) {
+func New(typ Type, name string) (Measure, error) {
 	if !Type(typ).IsValid() {
 		return nil, ErrInvalidType
 	}
