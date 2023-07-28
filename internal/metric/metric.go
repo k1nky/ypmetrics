@@ -8,6 +8,11 @@ import (
 
 type Type string
 
+const (
+	TypeGauge   = "gauge"
+	TypeCounter = "counter"
+)
+
 type Measure interface {
 	GetName() string
 	Update(value interface{}) error
@@ -30,7 +35,7 @@ var (
 
 func (t Type) IsValid() bool {
 	switch t {
-	case "gauge", "counter":
+	case TypeGauge, TypeCounter:
 		return true
 	default:
 		return false
@@ -42,11 +47,11 @@ func New(typ, name string) (Measure, error) {
 		return nil, ErrInvalidType
 	}
 	switch typ {
-	case "gauge":
+	case TypeGauge:
 		return &Gauge{
 			Name: name,
 		}, nil
-	case "counter":
+	case TypeCounter:
 		return &Counter{
 			Name: name,
 		}, nil
