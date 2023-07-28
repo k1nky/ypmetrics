@@ -75,6 +75,8 @@ func (g *Gauge) Update(value interface{}) error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", ErrInvalidValue, err)
 		}
+	case uint64:
+		v = float64(value.(uint64))
 	case float64:
 		v = value
 	default:
@@ -103,6 +105,8 @@ func (c *Counter) Update(value interface{}) error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", ErrInvalidValue, err)
 		}
+	case int:
+		v = int64(value.(int))
 	case int64:
 		v = value
 	default:
