@@ -69,14 +69,14 @@ func (g *Gauge) Update(value interface{}) error {
 		v   float64
 		err error
 	)
-	switch value.(type) {
+	switch value := value.(type) {
 	case string:
-		v, err = strconv.ParseFloat(value.(string), 64)
+		v, err = strconv.ParseFloat(value, 64)
 		if err != nil {
 			return fmt.Errorf("%s: %w", ErrInvalidValue, err)
 		}
 	case float64:
-		v = value.(float64)
+		v = value
 	default:
 		return ErrInvalidValue
 	}
@@ -97,14 +97,14 @@ func (c *Counter) Update(value interface{}) error {
 		v   int64
 		err error
 	)
-	switch value.(type) {
+	switch value := value.(type) {
 	case string:
-		v, err = strconv.ParseInt(value.(string), 10, 64)
+		v, err = strconv.ParseInt(value, 10, 64)
 		if err != nil {
 			return fmt.Errorf("%s: %w", ErrInvalidValue, err)
 		}
 	case int64:
-		v = value.(int64)
+		v = value
 	default:
 		return ErrInvalidValue
 	}
