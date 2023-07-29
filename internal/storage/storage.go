@@ -8,6 +8,7 @@ type MemStorage struct {
 
 type Storage interface {
 	Get(name string) metric.Measure
+	GetNames() []string
 	Set(value metric.Measure)
 	UpSet(metric metric.Measure, value interface{}) error
 }
@@ -39,4 +40,12 @@ func (ms *MemStorage) UpSet(metric metric.Measure, value interface{}) error {
 		ms.Set(metric)
 	}
 	return nil
+}
+
+func (ms *MemStorage) GetNames() []string {
+	result := make([]string, 0)
+	for name := range ms.values {
+		result = append(result, name)
+	}
+	return result
 }

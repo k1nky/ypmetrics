@@ -76,7 +76,7 @@ func (g *Gauge) Update(value interface{}) error {
 			return fmt.Errorf("%s: %w", ErrInvalidValue, err)
 		}
 	case uint64:
-		v = float64(value.(uint64))
+		v = float64(value)
 	case float64:
 		v = value
 	default:
@@ -87,7 +87,7 @@ func (g *Gauge) Update(value interface{}) error {
 }
 
 func (g *Gauge) String() string {
-	return fmt.Sprintf("[gauge] %s=%f", g.Name, g.Value)
+	return fmt.Sprintf("gauge/%s/%f", g.Name, g.Value)
 }
 
 func (c *Counter) GetName() string {
@@ -106,7 +106,7 @@ func (c *Counter) Update(value interface{}) error {
 			return fmt.Errorf("%s: %w", ErrInvalidValue, err)
 		}
 	case int:
-		v = int64(value.(int))
+		v = int64(value)
 	case int64:
 		v = value
 	default:
@@ -117,5 +117,5 @@ func (c *Counter) Update(value interface{}) error {
 }
 
 func (c *Counter) String() string {
-	return fmt.Sprintf("[counter] %s=%d", c.Name, c.Value)
+	return fmt.Sprintf("counter/%s/%d", c.Name, c.Value)
 }

@@ -3,8 +3,10 @@ package agent
 import (
 	"math/rand"
 	"runtime"
+	"sync"
 	"time"
 
+	"github.com/k1nky/ypmetrics/internal/apiclient"
 	"github.com/k1nky/ypmetrics/internal/metric"
 	"github.com/k1nky/ypmetrics/internal/storage"
 )
@@ -16,6 +18,7 @@ const (
 
 type Agent struct {
 	storage        storage.Storage
+	client         *apiclient.Client
 	PollInterval   time.Duration
 	ReportInterval time.Duration
 }
@@ -46,6 +49,7 @@ func New(options ...Option) *Agent {
 	s := &Agent{
 		PollInterval:   DefPollInterval,
 		ReportInterval: DefReportInterval,
+		client:         apiclient.New(),
 	}
 
 	for _, opt := range options {
@@ -60,6 +64,8 @@ func New(options ...Option) *Agent {
 
 func (a *Agent) Run() {
 
+	var wg sync.WaitGroup
+
 	for _, v := range runtimeMetricsList {
 		a.storage.Set(&metric.Gauge{
 			Name: v,
@@ -72,20 +78,35 @@ func (a *Agent) Run() {
 		Name: "RandomValue",
 	})
 
+	wg.Add(1)
 	go func() {
-		a.report()
-		time.Sleep(a.ReportInterval)
+		defer wg.Done()
+		for {
+			a.report()
+			time.Sleep(a.ReportInterval)
+		}
 	}()
-	for {
-		a.pollRuntime()
-		a.storage.Get("PollCounter").Update(1)
-		a.storage.Get("RandomValue").Update(randomFloat())
-		time.Sleep(a.PollInterval)
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			a.pollRuntime()
+			a.storage.Get("PollCounter").Update(1)
+			a.storage.Get("RandomValue").Update(randomFloat())
+			time.Sleep(a.PollInterval)
+		}
+	}()
+	wg.Wait()
 }
 
-func (a *Agent) report() {
-
+func (a *Agent) report() error {
+	for _, name := range a.storage.GetNames() {
+		metric := a.storage.Get(name)
+		if err := a.client.UpdateMetric(metric); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *Agent) pollRuntime() {
