@@ -3,13 +3,13 @@ package apiclient
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/k1nky/ypmetrics/internal/metric"
 )
 
-const DefBaseUrl = "http://localhost:8080"
+const DefBaseURL = "http://localhost:8080"
 
 var (
 	ErrUnexpectedStatusCode = errors.New("unexpected status code, want 200")
@@ -18,18 +18,18 @@ var (
 type Option func(*Client)
 
 type Client struct {
-	BaseUrl string
+	BaseURL string
 }
 
-func WithBaseUrl(base string) Option {
+func WithBaseURL(base string) Option {
 	return func(c *Client) {
-		c.BaseUrl = base
+		c.BaseURL = base
 	}
 }
 
 func New(options ...Option) *Client {
 	c := &Client{
-		BaseUrl: DefBaseUrl,
+		BaseURL: DefBaseURL,
 	}
 	for _, opt := range options {
 		opt(c)
@@ -39,7 +39,7 @@ func New(options ...Option) *Client {
 
 func (c *Client) UpdateMetric(metric metric.Measure) (err error) {
 	req := new(http.Request)
-	if req, err = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/%s", c.BaseUrl, metric), nil); err != nil {
+	if req, err = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/update/%s", c.BaseURL, metric), nil); err != nil {
 		return
 	}
 	req.Header.Add("content-type", "plain/text")
@@ -53,7 +53,8 @@ func (c *Client) doRequest(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
