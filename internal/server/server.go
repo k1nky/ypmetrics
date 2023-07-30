@@ -30,6 +30,6 @@ func New(options ...Option) *Server {
 	return s
 }
 
-func (s *Server) UpdateMetric(metric metric.Measure, value interface{}) error {
-	return s.storage.UpSet(metric, value)
+func (s *Server) UpdateMetric(metric metric.Measure) {
+	s.storage.UpSet(metric)
 }

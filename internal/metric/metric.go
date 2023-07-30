@@ -13,8 +13,15 @@ const (
 	TypeCounter = Type("counter")
 )
 
+// Measure интерфейс для работы с метриками
 type Measure interface {
+	// GetName возвращает имя метрики
 	GetName() string
+	// GetValue возвращает значение метрики
+	GetValue() interface{}
+	// GetType возвращает тип метрики
+	GetType() Type
+	// Update обновляет значение метрики
 	Update(value interface{}) error
 }
 
@@ -31,6 +38,7 @@ type Counter struct {
 var (
 	ErrInvalidType  = errors.New("invalid type")
 	ErrInvalidValue = errors.New("invalid value")
+	ErrEmptyName    = errors.New("metric has no name")
 )
 
 func (t Type) IsValid() bool {
@@ -46,6 +54,9 @@ func New(typ Type, name string) (Measure, error) {
 	if !Type(typ).IsValid() {
 		return nil, ErrInvalidType
 	}
+	if len(name) == 0 {
+		return nil, ErrEmptyName
+	}
 	switch typ {
 	case TypeGauge:
 		return &Gauge{
@@ -60,8 +71,27 @@ func New(typ Type, name string) (Measure, error) {
 	return nil, nil
 }
 
+func NewWtihValue(typ Type, name string, value interface{}) (Measure, error) {
+	m, err := New(typ, name)
+	if err != nil {
+		return nil, err
+	}
+	if err = m.Update(value); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (g *Gauge) GetName() string {
 	return g.Name
+}
+
+func (g *Gauge) GetType() Type {
+	return TypeGauge
+}
+
+func (g *Gauge) GetValue() interface{} {
+	return g.Value
 }
 
 func (g *Gauge) Update(value interface{}) error {
@@ -73,7 +103,7 @@ func (g *Gauge) Update(value interface{}) error {
 	case string:
 		v, err = strconv.ParseFloat(value, 64)
 		if err != nil {
-			return fmt.Errorf("%s: %w", ErrInvalidValue, err)
+			return fmt.Errorf("%s: %w allowed types string,uint64,float64", ErrInvalidValue, err)
 		}
 	case uint64:
 		v = float64(value)
@@ -94,6 +124,14 @@ func (c *Counter) GetName() string {
 	return c.Name
 }
 
+func (c *Counter) GetType() Type {
+	return TypeCounter
+}
+
+func (c *Counter) GetValue() interface{} {
+	return c.Value
+}
+
 func (c *Counter) Update(value interface{}) error {
 	var (
 		v   int64
@@ -103,7 +141,7 @@ func (c *Counter) Update(value interface{}) error {
 	case string:
 		v, err = strconv.ParseInt(value, 10, 64)
 		if err != nil {
-			return fmt.Errorf("%s: %w", ErrInvalidValue, err)
+			return fmt.Errorf("%s: %w allowed types string,int,int64 ", ErrInvalidValue, err)
 		}
 	case int:
 		v = int64(value)

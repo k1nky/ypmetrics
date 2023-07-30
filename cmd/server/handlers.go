@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -15,24 +16,24 @@ func updateHandler(s *server.Server) http.HandlerFunc {
 			return
 		}
 		sections := strings.Split(r.URL.Path, "/")
-		if len(sections) != 3 {
-			if len(sections) == 2 {
+		if len(sections) != 5 {
+			if len(sections) == 4 {
 				http.Error(w, "", http.StatusNotFound)
 				return
 			}
 			http.Error(w, "", http.StatusBadRequest)
 			return
 		}
-		metric, err := metric.New(metric.Type(sections[0]), sections[1])
+		m, err := metric.NewWtihValue(metric.Type(sections[2]), sections[3], sections[4])
+		if errors.Is(err, metric.ErrEmptyName) {
+			http.Error(w, "", http.StatusNotFound)
+			return
+		}
 		if err != nil {
 			http.Error(w, "", http.StatusBadRequest)
 			return
 		}
-
-		if err := s.UpdateMetric(metric, sections[2]); err != nil {
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
+		s.UpdateMetric(m)
 		w.WriteHeader(http.StatusOK)
 	}
 }

@@ -19,7 +19,7 @@ func run() error {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", http.NotFound)
-	mux.Handle("/update/", http.StripPrefix("/update/", updateHandler(srv)))
+	mux.Handle("/update/", updateHandler(srv))
 
 	log.Println("server starting")
 	return http.ListenAndServe("localhost:8080", mux)

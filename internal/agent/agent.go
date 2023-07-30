@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"math/rand"
 	"runtime"
 	"sync"
@@ -82,7 +83,9 @@ func (a *Agent) Run() {
 	go func() {
 		defer wg.Done()
 		for {
-			a.report()
+			if err := a.report(); err != nil {
+				fmt.Printf("report error: %s\n", err)
+			}
 			time.Sleep(a.ReportInterval)
 		}
 	}()
@@ -93,6 +96,7 @@ func (a *Agent) Run() {
 			a.pollRuntime()
 			a.storage.Get("PollCounter").Update(1)
 			a.storage.Get("RandomValue").Update(randomFloat())
+			fmt.Println("start polling")
 			time.Sleep(a.PollInterval)
 		}
 	}()

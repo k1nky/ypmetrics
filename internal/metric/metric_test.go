@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestType_IsValid(t *testing.T) {
+func TestTypeIsValid(t *testing.T) {
 	tests := []struct {
 		name string
 		tr   Type
@@ -93,7 +93,7 @@ func TestNew(t *testing.T) {
 	}
 }
 
-func TestGaugeUpdateError(t *testing.T) {
+func TestGaugeUpdate(t *testing.T) {
 	type fields struct {
 		Name  string
 		Value float64
@@ -222,8 +222,8 @@ func TestCounterUpdate(t *testing.T) {
 			args: args{
 				value: 100,
 			},
-			want:    50,
-			wantErr: true,
+			want:    150,
+			wantErr: false,
 		},
 		{
 			name: "Int64 value",
@@ -262,6 +262,46 @@ func TestCounterUpdate(t *testing.T) {
 			}
 			if c.Value != tt.want {
 				t.Errorf("Counter.Update() value = %d, want %d", c.Value, tt.want)
+			}
+		})
+	}
+}
+
+func TestGaugeString(t *testing.T) {
+	type fields struct {
+		Name  string
+		Value float64
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   string
+	}{
+		{
+			name: "Full filled",
+			fields: fields{
+				Name:  "gauge0",
+				Value: 1.0,
+			},
+			want: "gauge/gauge0/1.000000",
+		},
+		{
+			name: "Empty name",
+			fields: fields{
+				Name:  "",
+				Value: 1.0,
+			},
+			want: "gauge//1.000000",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := &Gauge{
+				Name:  tt.fields.Name,
+				Value: tt.fields.Value,
+			}
+			if got := g.String(); got != tt.want {
+				t.Errorf("Gauge.String() = %v, want %v", got, tt.want)
 			}
 		})
 	}

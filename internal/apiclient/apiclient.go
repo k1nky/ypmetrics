@@ -42,7 +42,7 @@ func (c *Client) UpdateMetric(metric metric.Measure) (err error) {
 	if req, err = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/update/%s", c.BaseURL, metric), nil); err != nil {
 		return
 	}
-	req.Header.Add("content-type", "plain/text")
+	req.Header.Add("content-type", "text/plain")
 	_, err = c.doRequest(req)
 	return
 }
