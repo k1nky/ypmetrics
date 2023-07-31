@@ -18,14 +18,17 @@ const (
 )
 
 type Agent struct {
-	storage        storage.Storage
-	client         *apiclient.Client
-	PollInterval   time.Duration
+	storage storage.Storage
+	client  *apiclient.Client
+	// PollInterval интервал опроса метрик
+	PollInterval time.Duration
+	// ReportInterval интервал отправки метрик на сервер
 	ReportInterval time.Duration
 }
 
 type Option func(*Agent)
 
+// список метрик, которые берутся из пакета runtime
 var runtimeMetricsList = []string{"Alloc", "BuckHashSys", "Frees", "GCCPUFraction", "GCSys", "HeapAlloc", "HeapIdle", "HeapInuse", "HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups", "MCacheInuse", "MCacheSys", "MSpanInuse", "MSpanSys", "Mallocs", "NextGC", "NumForcedGC", "NumGC", "OtherSys", "PauseTotalNs", "StackInuse", "StackSys", "Sys", "TotalAlloc"}
 
 func WithStorage(storage storage.Storage) Option {

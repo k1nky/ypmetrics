@@ -24,6 +24,7 @@ type Measure interface {
 	GetType() Type
 	// Update обновляет значение метрики
 	Update(value interface{}) error
+	// StringValue возвращает значение метрики как строку
 	StringValue() string
 }
 
