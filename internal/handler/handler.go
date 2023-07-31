@@ -20,18 +20,14 @@ func New(srv *server.Server) http.Handler {
 	}
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery())
+
+	valueRoutes := router.Group("/value")
+	valueRoutes.GET("/:type/:name", h.valueHandler)
 	updateRoutes := router.Group("/update")
 	updateRoutes.POST("/:type/", func(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 	})
 	updateRoutes.POST("/:type/:name/:value", h.updateHandler)
-	updateRoutes.Any("/", func(c *gin.Context) {
-		if c.Request.Method != http.MethodPost {
-			c.String(http.StatusMethodNotAllowed, "only POST allowed")
-			return
-		}
-		c.String(http.StatusBadRequest, "valid format: /update/<type>/<name>/<value:>\n")
-	})
 
 	return router
 }
@@ -48,4 +44,17 @@ func (h *handler) updateHandler(c *gin.Context) {
 	}
 	h.srv.UpdateMetric(m)
 	c.Status(http.StatusOK)
+}
+
+func (h *handler) valueHandler(c *gin.Context) {
+	m, err := h.srv.GetMetric(metric.Type(c.Param("type")), c.Param("name"))
+	if err != nil {
+		c.String(http.StatusBadRequest, "valid format: /value/<type>/<name>\n")
+		return
+	}
+	if m == nil {
+		c.String(http.StatusNotFound, "")
+		return
+	}
+	c.String(http.StatusOK, m.StringValue())
 }

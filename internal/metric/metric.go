@@ -24,6 +24,7 @@ type Measure interface {
 	GetType() Type
 	// Update обновляет значение метрики
 	Update(value interface{}) error
+	StringValue() string
 }
 
 type Gauge struct {
@@ -121,6 +122,10 @@ func (g *Gauge) String() string {
 	return fmt.Sprintf("gauge/%s/%f", g.Name, g.Value)
 }
 
+func (g *Gauge) StringValue() string {
+	return fmt.Sprintf("%f", g.Value)
+}
+
 func (c *Counter) GetName() string {
 	return c.Name
 }
@@ -157,4 +162,8 @@ func (c *Counter) Update(value interface{}) error {
 
 func (c *Counter) String() string {
 	return fmt.Sprintf("counter/%s/%d", c.Name, c.Value)
+}
+
+func (c *Counter) StringValue() string {
+	return fmt.Sprintf("%d", c.Value)
 }

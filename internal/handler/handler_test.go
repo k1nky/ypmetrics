@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/k1nky/ypmetrics/internal/metric"
 	"github.com/k1nky/ypmetrics/internal/server"
 	"github.com/stretchr/testify/assert"
 )
@@ -71,6 +73,89 @@ func TestUpdateHandler(t *testing.T) {
 			result := w.Result()
 			defer result.Body.Close()
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
+		})
+	}
+}
+
+func TestValueHandler(t *testing.T) {
+	type want struct {
+		statusCode int
+		value      string
+	}
+	tests := []struct {
+		name    string
+		request string
+		want    want
+	}{
+		{
+			name:    "Counter",
+			request: "/value/counter/counter1",
+			want: want{
+				statusCode: http.StatusOK,
+				value:      "10",
+			},
+		},
+		{
+			name:    "Updated counter",
+			request: "/value/counter/counter2",
+			want: want{
+				statusCode: http.StatusOK,
+				value:      "17",
+			},
+		},
+		{
+			name:    "Gauge",
+			request: "/value/gauge/gauge1",
+			want: want{
+				statusCode: http.StatusOK,
+				value:      "10.000000",
+			},
+		},
+		{
+			name:    "Updated gauge",
+			request: "/value/gauge/gauge2",
+			want: want{
+				statusCode: http.StatusOK,
+				value:      "0.999900",
+			},
+		},
+		{
+			name:    "Metric not exists",
+			request: "/value/gauge/gauge3",
+			want: want{
+				statusCode: http.StatusNotFound,
+				value:      "",
+			},
+		},
+		{
+			name:    "Incompatible type",
+			request: "/value/gauge/counter1",
+			want: want{
+				statusCode: http.StatusNotFound,
+				value:      "",
+			},
+		},
+	}
+	server := server.New()
+	server.UpdateMetric(&metric.Counter{Name: "counter1", Value: 10})
+	server.UpdateMetric(&metric.Counter{Name: "counter2", Value: 10})
+	server.UpdateMetric(&metric.Counter{Name: "counter2", Value: 7})
+	server.UpdateMetric(&metric.Gauge{Name: "gauge1", Value: 10})
+	server.UpdateMetric(&metric.Gauge{Name: "gauge2", Value: 10.99})
+	server.UpdateMetric(&metric.Gauge{Name: "gauge2", Value: 0.9999})
+
+	handler := New(server)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, tt.request, nil)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, request)
+			result := w.Result()
+			defer result.Body.Close()
+			body, err := io.ReadAll(result.Body)
+			assert.NoError(t, err, "error while reading body")
+			assert.Equal(t, tt.want.statusCode, result.StatusCode)
+			assert.Equal(t, tt.want.value, string(body))
 		})
 	}
 }
