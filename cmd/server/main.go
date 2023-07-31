@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/k1nky/ypmetrics/internal/handlers"
 	"github.com/k1nky/ypmetrics/internal/server"
 	"github.com/k1nky/ypmetrics/internal/storage"
 )
@@ -19,7 +20,7 @@ func run() error {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", http.NotFound)
-	mux.Handle("/update/", updateHandler(srv))
+	mux.Handle("/update/", handlers.UpdateHandler(srv))
 
 	log.Println("server starting")
 	return http.ListenAndServe("localhost:8080", mux)

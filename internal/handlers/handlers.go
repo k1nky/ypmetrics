@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 	"github.com/k1nky/ypmetrics/internal/server"
 )
 
-func updateHandler(s *server.Server) http.HandlerFunc {
+func UpdateHandler(s *server.Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)

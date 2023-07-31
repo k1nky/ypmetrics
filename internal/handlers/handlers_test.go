@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"net/http"
@@ -66,7 +66,7 @@ func TestUpdateHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, tt.request, nil)
 			w := httptest.NewRecorder()
-			h := http.HandlerFunc(updateHandler(server))
+			h := http.HandlerFunc(UpdateHandler(server))
 			h(w, request)
 			result := w.Result()
 			defer result.Body.Close()
