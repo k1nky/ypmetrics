@@ -10,6 +10,7 @@ import (
 )
 
 func main() {
+	parseFlags()
 	if err := run(); err != nil {
 		panic(err)
 	}
@@ -17,7 +18,7 @@ func main() {
 
 func run() error {
 	srv := server.New(server.WithStorage(storage.NewMemStorage()))
-	log.Println("server starting")
+	log.Println("server starting on ", address.String())
 	handler := handler.New(srv)
-	return http.ListenAndServe("localhost:8080", handler)
+	return http.ListenAndServe(address.String(), handler)
 }
