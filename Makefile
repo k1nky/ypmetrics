@@ -20,7 +20,7 @@ runserver:
 runagent:
 	go run ./cmd/agent
 
-autotest: autotest1 autotest2 autotest3
+autotest: autotest1 autotest2 autotest3 autotest4 autotest5
 
 autotest1: buildserver
 	metricstest -test.v -test.run=^TestIteration1$$ -binary-path=cmd/server/server
@@ -38,6 +38,13 @@ autotest3: buildserver buildagent
 
 autotest4: buildserver buildagent
 	SERVER_PORT=8090 ADDRESS="localhost:8090" TEMP_FILE="/tmp/123" metricstest -test.v -test.run=^TestIteration4$$ \
+	-agent-binary-path=cmd/agent/agent \
+	-binary-path=cmd/server/server \
+	-server-port=8090 \
+	-source-path=.
+
+autotest5:
+	SERVER_PORT=8090 ADDRESS="localhost:8090" TEMP_FILE="/tmp/123"  metricstest -test.v -test.run=^TestIteration5$$ \
 	-agent-binary-path=cmd/agent/agent \
 	-binary-path=cmd/server/server \
 	-server-port=8090 \

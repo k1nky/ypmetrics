@@ -34,8 +34,8 @@ func New(options ...Option) *Server {
 
 // GetAllMetrics возвращает массив метрик, имеющихся в хранилище сервера
 func (s *Server) GetAllMetrics() []metric.Measure {
-	metrics := make([]metric.Measure, 0)
 	names := s.storage.GetNames()
+	metrics := make([]metric.Measure, 0, len(names))
 	for _, name := range names {
 		metrics = append(metrics, s.storage.Get(name))
 	}

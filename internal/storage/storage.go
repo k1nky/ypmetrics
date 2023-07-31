@@ -60,7 +60,7 @@ func (ms *MemStorage) GetNames() []string {
 	ms.lock.Lock()
 	defer ms.lock.Unlock()
 
-	result := make([]string, 0)
+	result := make([]string, 0, len(ms.values))
 	for name := range ms.values {
 		result = append(result, name)
 	}
