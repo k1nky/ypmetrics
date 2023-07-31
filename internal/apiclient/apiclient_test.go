@@ -5,15 +5,14 @@ import (
 	"testing"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/k1nky/ypmetrics/internal/handlers"
+	"github.com/k1nky/ypmetrics/internal/handler"
 	"github.com/k1nky/ypmetrics/internal/metric"
 	"github.com/k1nky/ypmetrics/internal/server"
 )
 
 func TestUpdateMetric(t *testing.T) {
-	handler := handlers.UpdateHandler
 	srv := server.New()
-	httpsrv := httptest.NewServer(handler(srv))
+	httpsrv := httptest.NewServer(handler.New(srv))
 	defer httpsrv.Close()
 	cli := New(WithBaseURL(httpsrv.URL))
 	cli.httpclient = resty.NewWithClient(httpsrv.Client())

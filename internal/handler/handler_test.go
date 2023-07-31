@@ -1,4 +1,4 @@
-package handlers
+package handler
 
 import (
 	"net/http"
@@ -57,17 +57,17 @@ func TestUpdateHandler(t *testing.T) {
 			name:    "Update metric without value",
 			request: "/update/counter/counter0/",
 			want: want{
-				statusCode: http.StatusBadRequest,
+				statusCode: http.StatusTemporaryRedirect,
 			},
 		},
 	}
 	server := server.New()
+	handler := New(server)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, tt.request, nil)
 			w := httptest.NewRecorder()
-			h := http.HandlerFunc(UpdateHandler(server))
-			h(w, request)
+			handler.ServeHTTP(w, request)
 			result := w.Result()
 			defer result.Body.Close()
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
