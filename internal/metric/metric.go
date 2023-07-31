@@ -123,7 +123,7 @@ func (g *Gauge) String() string {
 }
 
 func (g *Gauge) StringValue() string {
-	return fmt.Sprintf("%f", g.Value)
+	return fmt.Sprintf("%g", g.Value)
 }
 
 func (c *Counter) GetName() string {

@@ -30,8 +30,13 @@ func New(options ...Option) *Server {
 	return s
 }
 
-func (s *Server) UpdateMetric(metric metric.Measure) {
-	s.storage.UpSet(metric)
+func (s *Server) GetAllMetrics() []metric.Measure {
+	metrics := make([]metric.Measure, 0)
+	names := s.storage.GetNames()
+	for _, name := range names {
+		metrics = append(metrics, s.storage.Get(name))
+	}
+	return metrics
 }
 
 func (s *Server) GetMetric(typ metric.Type, name string) (metric.Measure, error) {
@@ -45,4 +50,8 @@ func (s *Server) GetMetric(typ metric.Type, name string) (metric.Measure, error)
 		}
 	}
 	return m, nil
+}
+
+func (s *Server) UpdateMetric(metric metric.Measure) {
+	s.storage.UpSet(metric)
 }

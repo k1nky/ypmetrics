@@ -20,7 +20,7 @@ runserver:
 runagent:
 	go run ./cmd/agent
 
-autotest: autotest1 autotest2
+autotest: autotest1 autotest2 autotest3
 
 autotest1: buildserver
 	metricstest -test.v -test.run=^TestIteration1$$ -binary-path=cmd/server/server

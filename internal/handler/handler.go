@@ -2,7 +2,9 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/k1nky/ypmetrics/internal/metric"
 	"github.com/k1nky/ypmetrics/internal/server"
@@ -21,6 +23,7 @@ func New(srv *server.Server) http.Handler {
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery())
 
+	router.GET("/", h.allMetricsHandler)
 	valueRoutes := router.Group("/value")
 	valueRoutes.GET("/:type/:name", h.valueHandler)
 	updateRoutes := router.Group("/update")
@@ -57,4 +60,13 @@ func (h *handler) valueHandler(c *gin.Context) {
 		return
 	}
 	c.String(http.StatusOK, m.StringValue())
+}
+
+func (h *handler) allMetricsHandler(c *gin.Context) {
+	metrics := h.srv.GetAllMetrics()
+	result := strings.Builder{}
+	for _, m := range metrics {
+		result.WriteString(fmt.Sprintf("%s = %s\n", m.GetName(), m.StringValue()))
+	}
+	c.String(http.StatusOK, result.String())
 }
