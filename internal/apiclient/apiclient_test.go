@@ -14,7 +14,7 @@ func TestUpdateMetric(t *testing.T) {
 	srv := server.New()
 	httpsrv := httptest.NewServer(handler.New(srv))
 	defer httpsrv.Close()
-	cli := New(WithBaseURL(httpsrv.URL))
+	cli := New(WithEndpointURL(httpsrv.URL))
 	cli.httpclient = resty.NewWithClient(httpsrv.Client())
 
 	tests := []struct {

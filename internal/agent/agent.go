@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,6 +38,15 @@ func WithStorage(storage storage.Storage) Option {
 	}
 }
 
+func WithEndpoint(url string) Option {
+	return func(a *Agent) {
+		if !strings.HasPrefix(url, "http") {
+			url = "http://" + url
+		}
+		a.client.EndpointURL = url
+	}
+}
+
 func WithPollInterval(interval time.Duration) Option {
 	return func(a *Agent) {
 		a.PollInterval = interval
@@ -50,6 +60,7 @@ func WithReportInterval(interval time.Duration) Option {
 }
 
 func New(options ...Option) *Agent {
+
 	s := &Agent{
 		PollInterval:   DefPollInterval,
 		ReportInterval: DefReportInterval,

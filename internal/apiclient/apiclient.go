@@ -9,7 +9,8 @@ import (
 	"github.com/k1nky/ypmetrics/internal/metric"
 )
 
-const DefBaseURL = "http://localhost:8080"
+// const DefEndpointURL = "http://localhost:8080"
+const DefEndpointURL = "localhost:8080"
 
 var (
 	ErrUnexpectedStatusCode = errors.New("unexpected status code, want 200")
@@ -18,20 +19,20 @@ var (
 type Option func(*Client)
 
 type Client struct {
-	BaseURL    string
-	httpclient *resty.Client
+	EndpointURL string
+	httpclient  *resty.Client
 }
 
-func WithBaseURL(base string) Option {
+func WithEndpointURL(url string) Option {
 	return func(c *Client) {
-		c.BaseURL = base
+		c.EndpointURL = url
 	}
 }
 
 func New(options ...Option) *Client {
 	c := &Client{
-		BaseURL:    DefBaseURL,
-		httpclient: resty.New(),
+		EndpointURL: DefEndpointURL,
+		httpclient:  resty.New(),
 	}
 	for _, opt := range options {
 		opt(c)
@@ -42,7 +43,7 @@ func New(options ...Option) *Client {
 func (c *Client) UpdateMetric(metric metric.Measure) (err error) {
 	req := c.httpclient.R()
 	req.Method = http.MethodPost
-	if url, err := url.JoinPath(c.BaseURL, "update", metric.String()); err != nil {
+	if url, err := url.JoinPath(c.EndpointURL, "update", metric.String()); err != nil {
 		return err
 	} else {
 		req.URL = url
