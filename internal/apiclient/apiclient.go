@@ -2,10 +2,10 @@ package apiclient
 
 import (
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
+	"net/url"
 
+	"github.com/go-resty/resty/v2"
 	"github.com/k1nky/ypmetrics/internal/metric"
 )
 
@@ -18,7 +18,8 @@ var (
 type Option func(*Client)
 
 type Client struct {
-	BaseURL string
+	BaseURL    string
+	httpclient *resty.Client
 }
 
 func WithBaseURL(base string) Option {
@@ -29,7 +30,8 @@ func WithBaseURL(base string) Option {
 
 func New(options ...Option) *Client {
 	c := &Client{
-		BaseURL: DefBaseURL,
+		BaseURL:    DefBaseURL,
+		httpclient: resty.New(),
 	}
 	for _, opt := range options {
 		opt(c)
@@ -38,28 +40,20 @@ func New(options ...Option) *Client {
 }
 
 func (c *Client) UpdateMetric(metric metric.Measure) (err error) {
-	req := new(http.Request)
-	if req, err = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/update/%s", c.BaseURL, metric), nil); err != nil {
-		return
+	req := c.httpclient.R()
+	req.Method = http.MethodPost
+	if url, err := url.JoinPath(c.BaseURL, "update", metric.String()); err != nil {
+		return err
+	} else {
+		req.URL = url
 	}
-	req.Header.Add("content-type", "text/plain")
-	_, err = c.doRequest(req)
-	return
-}
+	resp, err := req.Send()
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return ErrUnexpectedStatusCode
+	}
 
-func (c *Client) doRequest(req *http.Request) ([]byte, error) {
-	httpclient := &http.Client{}
-	resp, err := httpclient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, ErrUnexpectedStatusCode
-	}
-	return body, nil
+	return
 }

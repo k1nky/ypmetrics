@@ -15,6 +15,7 @@ const (
 
 // Measure интерфейс для работы с метриками
 type Measure interface {
+	fmt.Stringer
 	// GetName возвращает имя метрики
 	GetName() string
 	// GetValue возвращает значение метрики
