@@ -13,9 +13,9 @@ import (
 type netAddress string
 
 type Config struct {
-	Address        netAddress    `env:"ADDRESS"`
-	ReportInterval time.Duration `env:"REPORT_INTERVAL"`
-	PollInterval   time.Duration `env:"POLL_INTERVAL"`
+	Address        netAddress
+	ReportInterval time.Duration
+	PollInterval   time.Duration
 }
 
 func (a netAddress) String() string {
@@ -100,38 +100,3 @@ func Parse(cmd *flag.FlagSet) (*Config, error) {
 	}
 	return configFromEnv, nil
 }
-
-// func (c *Config) Parse(cmd *flag.FlagSet) error {
-
-// 	address := netAddress("localhost:8080")
-// 	reportInterval := uint(agent.DefReportInterval.Seconds())
-// 	pollInterval := uint(agent.DefPollInterval.Seconds())
-
-// 	if cmd == nil {
-// 		cmd = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-// 	}
-// 	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
-// 	cmd.UintP(&reportInterval, "report-interval", "r", "интервал отправки метрик на сервер")
-// 	cmd.UintP(&pollInterval, "poll-interval", "p", "интервал сбора метрик")
-
-// 	if err := cmd.Parse(os.Args[1:]); err != nil {
-// 		return err
-// 	}
-// 	if err := env.Parse(c); err != nil {
-// 		return err
-// 	}
-// 	if len(c.Address) != 0 {
-// 		if err := address.Set(string(c.Address)); err != nil {
-// 			c.Address = ""
-// 			return err
-// 		}
-// 	}
-// 	if c.PollInterval == 0 {
-// 		c.PollInterval = time.Duration(pollInterval)
-// 	}
-// 	if c.ReportInterval == 0 {
-// 		c.ReportInterval = time.Duration(reportInterval)
-// 	}
-// 	c.Address = address
-// 	return nil
-// }

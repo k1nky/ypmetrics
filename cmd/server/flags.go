@@ -8,18 +8,18 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-// NetAddress строка вида [<хост>]:<порт> и реализует интерфейс pflag.Value
-type NetAddress string
+// netAddress строка вида [<хост>]:<порт> и реализует интерфейс pflag.Value
+type netAddress string
 
 type Config struct {
-	Address NetAddress `env:"ADDRESS"`
+	Address netAddress
 }
 
-func (a NetAddress) String() string {
+func (a netAddress) String() string {
 	return string(a)
 }
 
-func (a *NetAddress) Set(s string) error {
+func (a *netAddress) Set(s string) error {
 	host, port, err := net.SplitHostPort(s)
 	if err != nil {
 		return err
@@ -28,12 +28,45 @@ func (a *NetAddress) Set(s string) error {
 		// если не указан хост, то используем localhost по умолчанию
 		s = "localhost:" + port
 	}
-	*a = NetAddress(s)
+	*a = netAddress(s)
 	return nil
 }
 
-func (a *NetAddress) Type() string {
+func (a *netAddress) Type() string {
 	return "string"
+}
+
+func parseFromCmd(cmd *flag.FlagSet) (*Config, error) {
+	if cmd == nil {
+		cmd = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	}
+	address := netAddress("localhost:8080")
+	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
+
+	if err := cmd.Parse(os.Args[1:]); err != nil {
+		return nil, err
+	}
+	return &Config{
+		Address: address,
+	}, nil
+}
+
+func parseFromEnv() (*Config, error) {
+	type cfg struct {
+		Address netAddress `env:"ADDRESS"`
+	}
+	c := &cfg{}
+	if err := env.Parse(c); err != nil {
+		return nil, err
+	}
+	if len(c.Address) != 0 {
+		if err := c.Address.Set(c.Address.String()); err != nil {
+			return nil, err
+		}
+	}
+	return &Config{
+		Address: c.Address,
+	}, nil
 }
 
 // Parse разбирает настройки сервера из аргументов командной строки
@@ -42,27 +75,17 @@ func (a *NetAddress) Type() string {
 // CommandLine по умолчанию из пакета pflag не используем, т.к.
 // он усложняет тестирование. Поэтому передаем ссылку на новую CommandLine
 // в аргументе cmd метода.
-func (c *Config) Parse(cmd *flag.FlagSet) error {
-
-	address := NetAddress("localhost:8080")
-
-	if cmd == nil {
-		cmd = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+func Parse(cmd *flag.FlagSet) (*Config, error) {
+	configFromCmd, err := parseFromCmd(cmd)
+	if err != nil {
+		return nil, err
 	}
-	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
-
-	if err := cmd.Parse(os.Args[1:]); err != nil {
-		return err
+	configFromEnv, err := parseFromEnv()
+	if err != nil {
+		return nil, err
 	}
-	if err := env.Parse(c); err != nil {
-		return err
+	if len(configFromEnv.Address) == 0 {
+		configFromEnv.Address = configFromCmd.Address
 	}
-	if len(c.Address) != 0 {
-		if err := address.Set(string(c.Address)); err != nil {
-			c.Address = ""
-			return err
-		}
-	}
-	c.Address = address
-	return nil
+	return configFromEnv, nil
 }

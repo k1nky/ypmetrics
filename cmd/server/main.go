@@ -10,15 +10,15 @@ import (
 )
 
 var (
-	config Config
+	config *Config
 )
 
 func main() {
-
-	if err := config.Parse(nil); err != nil {
+	var err error
+	if config, err = Parse(nil); err != nil {
 		panic(err)
 	}
-	if err := run(); err != nil {
+	if err = run(); err != nil {
 		panic(err)
 	}
 }
