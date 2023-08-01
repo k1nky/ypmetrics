@@ -9,8 +9,15 @@ import (
 	"github.com/k1nky/ypmetrics/internal/storage"
 )
 
+var (
+	config Config
+)
+
 func main() {
-	parseFlags()
+
+	if err := config.Parse(nil); err != nil {
+		panic(err)
+	}
 	if err := run(); err != nil {
 		panic(err)
 	}
@@ -18,7 +25,7 @@ func main() {
 
 func run() error {
 	srv := server.New(server.WithStorage(storage.NewMemStorage()))
-	log.Println("server starting on ", address.String())
+	log.Println("server starting on ", config.Address)
 	handler := handler.New(srv)
-	return http.ListenAndServe(address.String(), handler)
+	return http.ListenAndServe(config.Address.String(), handler)
 }

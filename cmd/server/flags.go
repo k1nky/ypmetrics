@@ -1,34 +1,34 @@
 package main
 
 import (
-	"fmt"
 	"net"
+	"os"
 
+	"github.com/caarlos0/env/v6"
 	flag "github.com/spf13/pflag"
 )
 
-type NetAddress struct {
-	Host string
-	Port string
+// NetAddress строка вида [<хост>]:<порт> и реализует интерфейс pflag.Value
+type NetAddress string
+
+type Config struct {
+	Address NetAddress `env:"ADDRESS"`
 }
 
-var (
-	address *NetAddress = &NetAddress{Host: "localhost", Port: "8080"}
-)
-
 func (a NetAddress) String() string {
-	return fmt.Sprintf("%s:%s", a.Host, a.Port)
+	return string(a)
 }
 
 func (a *NetAddress) Set(s string) error {
-	var err error
-	a.Host, a.Port, err = net.SplitHostPort(s)
+	host, port, err := net.SplitHostPort(s)
 	if err != nil {
 		return err
 	}
-	if len(a.Host) == 0 {
-		a.Host = "localhost"
+	if len(host) == 0 {
+		// если не указан хост, то используем localhost по умолчанию
+		s = "localhost:" + port
 	}
+	*a = NetAddress(s)
 	return nil
 }
 
@@ -36,8 +36,33 @@ func (a *NetAddress) Type() string {
 	return "string"
 }
 
-func parseFlags() {
-	flag.VarP(address, "address", "a", "address and port to listen")
+// Parse разбирает настройки сервера из аргументов командной строки
+// и переменных окружения. Переменные окружения имеют более высокий
+// приоритет, чем аргументы.
+// CommandLine по умолчанию из пакета pflag не используем, т.к.
+// он усложняет тестирование. Поэтому передаем ссылку на новую CommandLine
+// в аргументе cmd метода.
+func (c *Config) Parse(cmd *flag.FlagSet) error {
 
-	flag.Parse()
+	address := NetAddress("localhost:8080")
+
+	if cmd == nil {
+		cmd = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	}
+	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
+
+	if err := cmd.Parse(os.Args[1:]); err != nil {
+		return err
+	}
+	if err := env.Parse(c); err != nil {
+		return err
+	}
+	if len(c.Address) != 0 {
+		if err := address.Set(string(c.Address)); err != nil {
+			c.Address = ""
+			return err
+		}
+	}
+	c.Address = address
+	return nil
 }
