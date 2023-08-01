@@ -43,7 +43,7 @@ autotest4: buildserver buildagent
 	-server-port=8090 \
 	-source-path=.
 
-autotest5:
+autotest5: buildserver buildagent
 	SERVER_PORT=8090 ADDRESS="localhost:8090" TEMP_FILE="/tmp/123"  metricstest -test.v -test.run=^TestIteration5$$ \
 	-agent-binary-path=cmd/agent/agent \
 	-binary-path=cmd/server/server \
