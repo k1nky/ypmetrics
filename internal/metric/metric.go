@@ -1,3 +1,4 @@
+// Пакет metric реализует метрики Gauge и Counter
 package metric
 
 import (
@@ -6,6 +7,7 @@ import (
 	"strconv"
 )
 
+// Type тип метрики
 type Type string
 
 const (
@@ -22,19 +24,25 @@ type Measure interface {
 	GetValue() interface{}
 	// GetType возвращает тип метрики
 	GetType() Type
-	// Update обновляет значение метрики
-	Update(value interface{}) error
 	// StringValue возвращает значение метрики как строку
 	StringValue() string
+	// Update обновляет значение метрики
+	Update(value interface{}) error
 }
 
+// Gauge метрика "измеритель". При обновлении новое значение замещает старое.
 type Gauge struct {
-	Name  string
+	// Имя метрики
+	Name string
+	// Значение метрики
 	Value float64
 }
 
+// Counter метрика "счетчик". При обновлении к старому значению добавляется новое.
 type Counter struct {
-	Name  string
+	// Имя метрики
+	Name string
+	// Значение метрики
 	Value int64
 }
 
@@ -44,6 +52,7 @@ var (
 	ErrEmptyName    = errors.New("metric has no name")
 )
 
+// IsValid возвращает true, если тип метрики имеет допустимое значение.
 func (t Type) IsValid() bool {
 	switch t {
 	case TypeGauge, TypeCounter:
@@ -53,6 +62,8 @@ func (t Type) IsValid() bool {
 	}
 }
 
+// New создает новую метрики с указаным типом type и именем name.
+// Ошибка будет != nil, если указан неверный тип или имя.
 func New(typ Type, name string) (Measure, error) {
 	if !Type(typ).IsValid() {
 		return nil, ErrInvalidType
@@ -74,6 +85,8 @@ func New(typ Type, name string) (Measure, error) {
 	return nil, nil
 }
 
+// New создает новую метрики с указаным типом type, именем name и значением value.
+// Функция аналогична New за исключением, того что иницилизирует ее указанным значением.
 func NewWtihValue(typ Type, name string, value interface{}) (Measure, error) {
 	m, err := New(typ, name)
 	if err != nil {
@@ -85,18 +98,29 @@ func NewWtihValue(typ Type, name string, value interface{}) (Measure, error) {
 	return m, nil
 }
 
-func (g *Gauge) GetName() string {
+func (g Gauge) GetName() string {
 	return g.Name
 }
 
-func (g *Gauge) GetType() Type {
+func (g Gauge) GetType() Type {
 	return TypeGauge
 }
 
-func (g *Gauge) GetValue() interface{} {
+func (g Gauge) GetValue() interface{} {
 	return g.Value
 }
 
+func (g Gauge) String() string {
+	return fmt.Sprintf("gauge/%s/%f", g.Name, g.Value)
+}
+
+func (g Gauge) StringValue() string {
+	return fmt.Sprintf("%g", g.Value)
+}
+
+// Update обновляет значение измерителя заменой текущего значения на указанное в value.
+// value может быть типа string,uint64,float64, в противном случае будет
+// возвращена ошибка.
 func (g *Gauge) Update(value interface{}) error {
 	var (
 		v   float64
@@ -109,6 +133,7 @@ func (g *Gauge) Update(value interface{}) error {
 			return fmt.Errorf("%s: %w allowed types string,uint64,float64", ErrInvalidValue, err)
 		}
 	case uint64:
+		// для простоты рабоы с метриками из пакета runtime
 		v = float64(value)
 	case float64:
 		v = value
@@ -119,26 +144,29 @@ func (g *Gauge) Update(value interface{}) error {
 	return nil
 }
 
-func (g *Gauge) String() string {
-	return fmt.Sprintf("gauge/%s/%f", g.Name, g.Value)
-}
-
-func (g *Gauge) StringValue() string {
-	return fmt.Sprintf("%g", g.Value)
-}
-
-func (c *Counter) GetName() string {
+func (c Counter) GetName() string {
 	return c.Name
 }
 
-func (c *Counter) GetType() Type {
+func (c Counter) GetType() Type {
 	return TypeCounter
 }
 
-func (c *Counter) GetValue() interface{} {
+func (c Counter) GetValue() interface{} {
 	return c.Value
 }
 
+func (c Counter) String() string {
+	return fmt.Sprintf("counter/%s/%d", c.Name, c.Value)
+}
+
+func (c Counter) StringValue() string {
+	return fmt.Sprintf("%d", c.Value)
+}
+
+// Update обновляет значение счетчика, добавляя к текущему значению указанное в value.
+// value может быть типа string,int,int64, в противном случае будет
+// возвращена ошибка.
 func (c *Counter) Update(value interface{}) error {
 	var (
 		v   int64
@@ -159,12 +187,4 @@ func (c *Counter) Update(value interface{}) error {
 	}
 	c.Value += v
 	return nil
-}
-
-func (c *Counter) String() string {
-	return fmt.Sprintf("counter/%s/%d", c.Name, c.Value)
-}
-
-func (c *Counter) StringValue() string {
-	return fmt.Sprintf("%d", c.Value)
 }

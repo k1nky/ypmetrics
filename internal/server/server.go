@@ -1,3 +1,4 @@
+// Пакет server реализует сервер сбора метрик
 package server
 
 import (
@@ -5,13 +6,16 @@ import (
 	"github.com/k1nky/ypmetrics/internal/storage"
 )
 
+// Server сбора метрик
 type Server struct {
 	storage storage.Storage
 }
 
+// Option опция конфигурации сервера сбора метрик.
+// Используются при создании нового сервера через функцию New.
 type Option func(*Server)
 
-// WithStorage возвращает опцию для указания хранилища при создании нового сервера
+// WithStorage задает опцию, определяющее какое хранилище использовать для метрик
 func WithStorage(storage storage.Storage) Option {
 	return func(s *Server) {
 		s.storage = storage
@@ -32,8 +36,8 @@ func New(options ...Option) *Server {
 	return s
 }
 
-// GetAllMetrics возвращает массив метрик, имеющихся в хранилище сервера
-func (s *Server) GetAllMetrics() []metric.Measure {
+// GetAllMetrics возвращает список метрик, имеющихся в хранилище сервера
+func (s Server) GetAllMetrics() []metric.Measure {
 	names := s.storage.GetNames()
 	metrics := make([]metric.Measure, 0, len(names))
 	for _, name := range names {
@@ -46,7 +50,7 @@ func (s *Server) GetAllMetrics() []metric.Measure {
 // Если тип имеет не верное значение, функция вернет ошибку.
 // Если запращиваемой метрики не найдено, то будет возвращен nil.
 // Метод провеяет соответствие указанного типа и типа метрики.
-func (s *Server) GetMetric(typ metric.Type, name string) (metric.Measure, error) {
+func (s Server) GetMetric(typ metric.Type, name string) (metric.Measure, error) {
 	if !typ.IsValid() {
 		return nil, metric.ErrInvalidType
 	}
@@ -61,6 +65,6 @@ func (s *Server) GetMetric(typ metric.Type, name string) (metric.Measure, error)
 
 // UpdateMetric обновляет значение метрики или добавляет ее в хранилище
 // если ее еще нет.
-func (s *Server) UpdateMetric(metric metric.Measure) {
+func (s Server) UpdateMetric(metric metric.Measure) {
 	s.storage.UpSet(metric)
 }

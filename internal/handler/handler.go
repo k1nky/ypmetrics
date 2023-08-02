@@ -1,3 +1,4 @@
+// Пакет handler реализует обработчик HTTP запросов к серверу сбора метрик
 package handler
 
 import (
@@ -16,6 +17,7 @@ type handler struct {
 	srv *server.Server
 }
 
+// New возвращает новый обработчик HTTP запросов для сервера srv.
 func New(srv *server.Server) http.Handler {
 	h := &handler{
 		srv: srv,
@@ -35,18 +37,13 @@ func New(srv *server.Server) http.Handler {
 	return router
 }
 
-func (h *handler) updateHandler(c *gin.Context) {
-	m, err := metric.NewWtihValue(metric.Type(c.Param("type")), c.Param("name"), c.Param("value"))
-	if errors.Is(err, metric.ErrEmptyName) {
-		c.String(http.StatusNotFound, "%s", err)
-		return
+func (h *handler) allMetricsHandler(c *gin.Context) {
+	metrics := h.srv.GetAllMetrics()
+	result := strings.Builder{}
+	for _, m := range metrics {
+		result.WriteString(fmt.Sprintf("%s = %s\n", m.GetName(), m.StringValue()))
 	}
-	if err != nil {
-		c.String(http.StatusBadRequest, "valid format: /update/<type>/<name>/<value>\n")
-		return
-	}
-	h.srv.UpdateMetric(m)
-	c.Status(http.StatusOK)
+	c.String(http.StatusOK, result.String())
 }
 
 func (h *handler) valueHandler(c *gin.Context) {
@@ -62,11 +59,16 @@ func (h *handler) valueHandler(c *gin.Context) {
 	c.String(http.StatusOK, m.StringValue())
 }
 
-func (h *handler) allMetricsHandler(c *gin.Context) {
-	metrics := h.srv.GetAllMetrics()
-	result := strings.Builder{}
-	for _, m := range metrics {
-		result.WriteString(fmt.Sprintf("%s = %s\n", m.GetName(), m.StringValue()))
+func (h *handler) updateHandler(c *gin.Context) {
+	m, err := metric.NewWtihValue(metric.Type(c.Param("type")), c.Param("name"), c.Param("value"))
+	if errors.Is(err, metric.ErrEmptyName) {
+		c.String(http.StatusNotFound, "%s", err)
+		return
 	}
-	c.String(http.StatusOK, result.String())
+	if err != nil {
+		c.String(http.StatusBadRequest, "valid format: /update/<type>/<name>/<value>\n")
+		return
+	}
+	h.srv.UpdateMetric(m)
+	c.Status(http.StatusOK)
 }

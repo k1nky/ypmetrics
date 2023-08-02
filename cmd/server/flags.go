@@ -80,12 +80,12 @@ func Parse(cmd *flag.FlagSet) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	configFromEnv, err := parseFromEnv()
+	c, err := parseFromEnv()
 	if err != nil {
 		return nil, err
 	}
-	if len(configFromEnv.Address) == 0 {
-		configFromEnv.Address = configFromCmd.Address
+	if len(c.Address) == 0 {
+		c.Address = configFromCmd.Address
 	}
-	return configFromEnv, nil
+	return c, nil
 }

@@ -80,23 +80,25 @@ func parseFromEnv() (*Config, error) {
 	}, nil
 }
 
+// Parse возвращает конфиг приложения. Опции разбираются из аргументов командной строки
+// и переменных окружения. Переменные окружения приоритет выше чем аргументы командной строки.
 func Parse(cmd *flag.FlagSet) (*Config, error) {
 	configFromCmd, err := parseFromCmd(cmd)
 	if err != nil {
 		return nil, err
 	}
-	configFromEnv, err := parseFromEnv()
+	c, err := parseFromEnv()
 	if err != nil {
 		return nil, err
 	}
-	if len(configFromEnv.Address) == 0 {
-		configFromEnv.Address = configFromCmd.Address
+	if len(c.Address) == 0 {
+		c.Address = configFromCmd.Address
 	}
-	if configFromEnv.PollInterval == 0 {
-		configFromEnv.PollInterval = configFromCmd.PollInterval
+	if c.PollInterval == 0 {
+		c.PollInterval = configFromCmd.PollInterval
 	}
-	if configFromEnv.ReportInterval == 0 {
-		configFromEnv.ReportInterval = configFromCmd.ReportInterval
+	if c.ReportInterval == 0 {
+		c.ReportInterval = configFromCmd.ReportInterval
 	}
-	return configFromEnv, nil
+	return c, nil
 }

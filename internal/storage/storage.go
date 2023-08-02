@@ -1,3 +1,4 @@
+// Пакет storage реализует хранилище метрик
 package storage
 
 import (
@@ -18,13 +19,14 @@ type Storage interface {
 	Get(name string) metric.Measure
 	// GetNames возвращает имена всех метрик, имеющихся в хранилище
 	GetNames() []string
-	// Set добавляет метрику в хранилище. Если метрика с таким именем уже есть, то метрика перезапищется
+	// Set добавляет метрику в хранилище. Если метрика с таким именем уже есть, то метрика перезапишется
 	Set(value metric.Measure)
 	// UpSet добавляет/обновляет метрику в хранилище. Если такая метрика уже есть, то обновляет ее значение
 	// новым значением из переданной метрики
 	UpSet(metric metric.Measure)
 }
 
+// NewMemStorage возвращает новое хранилище в памяти
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
 		values: make(map[string]metric.Measure),
@@ -41,6 +43,17 @@ func (ms *MemStorage) Get(name string) metric.Measure {
 	return nil
 }
 
+func (ms *MemStorage) GetNames() []string {
+	ms.lock.Lock()
+	defer ms.lock.Unlock()
+
+	result := make([]string, 0, len(ms.values))
+	for name := range ms.values {
+		result = append(result, name)
+	}
+	return result
+}
+
 func (ms *MemStorage) Set(value metric.Measure) {
 	ms.lock.Lock()
 	defer ms.lock.Unlock()
@@ -54,15 +67,4 @@ func (ms *MemStorage) UpSet(metric metric.Measure) {
 	} else {
 		ms.Set(metric)
 	}
-}
-
-func (ms *MemStorage) GetNames() []string {
-	ms.lock.Lock()
-	defer ms.lock.Unlock()
-
-	result := make([]string, 0, len(ms.values))
-	for name := range ms.values {
-		result = append(result, name)
-	}
-	return result
 }

@@ -57,7 +57,7 @@ func TestMemStorageGet(t *testing.T) {
 	}
 }
 
-func TestMemStorage_UpSet(t *testing.T) {
+func TestMemStorageUpSet(t *testing.T) {
 	type fields struct {
 		values map[string]metric.Measure
 	}

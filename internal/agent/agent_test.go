@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/k1nky/ypmetrics/internal/apiclient"
+	"github.com/k1nky/ypmetrics/internal/metric"
 	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/stretchr/testify/assert"
 )
@@ -74,6 +75,37 @@ func TestNew(t *testing.T) {
 			assert.Equal(t, tt.want.ReportInterval, got.ReportInterval)
 			assert.Equal(t, tt.want.client.EndpointURL, got.client.EndpointURL)
 			assert.NotNil(t, got.storage)
+		})
+	}
+}
+
+func TestAgentPollRuntime(t *testing.T) {
+	tests := []struct {
+		name       string
+		metricName string
+		want       metric.Measure
+	}{
+		{
+			name:       "Metric Mallocs exists",
+			metricName: "Mallocs",
+			want:       &metric.Gauge{Name: "Mallocs"},
+		},
+		{
+			name:       "Metric not exists",
+			metricName: "Mallocs123",
+			want:       nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := New()
+			a.setupPredefinedMetrics()
+			a.pollRuntime()
+			got := a.storage.Get(tt.metricName)
+			if got != nil {
+				got.(*metric.Gauge).Value = 0
+			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

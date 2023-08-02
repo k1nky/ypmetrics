@@ -1,3 +1,4 @@
+// Пакет agent реализует агента сбора метрик
 package agent
 
 import (
@@ -27,17 +28,21 @@ type Agent struct {
 	ReportInterval time.Duration
 }
 
+// Option опция конфигурации агента.
+// Используются при создании нового агента через функцию New.
 type Option func(*Agent)
 
 // список метрик, которые берутся из пакета runtime
 var runtimeMetricsList = []string{"Alloc", "BuckHashSys", "Frees", "GCCPUFraction", "GCSys", "HeapAlloc", "HeapIdle", "HeapInuse", "HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups", "MCacheInuse", "MCacheSys", "MSpanInuse", "MSpanSys", "Mallocs", "NextGC", "NumForcedGC", "NumGC", "OtherSys", "PauseTotalNs", "StackInuse", "StackSys", "Sys", "TotalAlloc"}
 
+// WithStorage задает опцию, определяющее какое хранилище использовать для метрик
 func WithStorage(storage storage.Storage) Option {
 	return func(a *Agent) {
 		a.storage = storage
 	}
 }
 
+// WithEndpoint задает опцию, определяющее URL сервера сбора метрик
 func WithEndpoint(url string) Option {
 	return func(a *Agent) {
 		if !strings.HasPrefix(url, "http") {
@@ -47,40 +52,40 @@ func WithEndpoint(url string) Option {
 	}
 }
 
+// WithPollInterval задает опцию, определяющее интервал опроса метрик
 func WithPollInterval(interval time.Duration) Option {
 	return func(a *Agent) {
 		a.PollInterval = interval
 	}
 }
 
+// WithReportInterval задает опцию, определяющее интервал отправки метрик на сервер
 func WithReportInterval(interval time.Duration) Option {
 	return func(a *Agent) {
 		a.ReportInterval = interval
 	}
 }
 
+// New возвращает нового агента сбора метрик. По умолчанию в качестве хранилища используется MemStorage.
 func New(options ...Option) *Agent {
 
-	s := &Agent{
+	a := &Agent{
 		PollInterval:   DefPollInterval,
 		ReportInterval: DefReportInterval,
 		client:         apiclient.New(),
 	}
 
 	for _, opt := range options {
-		opt(s)
+		opt(a)
 	}
-	if s.storage == nil {
-		s.storage = storage.NewMemStorage()
+	if a.storage == nil {
+		a.storage = storage.NewMemStorage()
 	}
 
-	return s
+	return a
 }
 
-func (a *Agent) Run() {
-
-	var wg sync.WaitGroup
-
+func (a *Agent) setupPredefinedMetrics() {
 	for _, v := range runtimeMetricsList {
 		a.storage.Set(&metric.Gauge{
 			Name: v,
@@ -92,6 +97,14 @@ func (a *Agent) Run() {
 	a.storage.Set(&metric.Gauge{
 		Name: "RandomValue",
 	})
+}
+
+// Run запускает агента
+func (a Agent) Run() {
+
+	var wg sync.WaitGroup
+
+	a.setupPredefinedMetrics()
 
 	wg.Add(1)
 	go func() {
@@ -117,7 +130,7 @@ func (a *Agent) Run() {
 	wg.Wait()
 }
 
-func (a *Agent) report() error {
+func (a Agent) report() error {
 	for _, name := range a.storage.GetNames() {
 		metric := a.storage.Get(name)
 		if err := a.client.UpdateMetric(metric); err != nil {
@@ -127,7 +140,7 @@ func (a *Agent) report() error {
 	return nil
 }
 
-func (a *Agent) pollRuntime() {
+func (a Agent) pollRuntime() {
 	memStat := &runtime.MemStats{}
 	runtime.ReadMemStats(memStat)
 	a.storage.Get("Alloc").Update(memStat.Alloc)
