@@ -9,62 +9,87 @@ import (
 
 // MemStorage хранилище метрик в памяти
 type MemStorage struct {
-	values map[string]metric.Measure
-	lock   sync.Mutex
-}
-
-// Storage хранилище метрик
-type Storage interface {
-	// Get возвращает метрику по имени. Если запращиваемой метрики нет - возвращает nil
-	Get(name string) metric.Measure
-	// GetNames возвращает имена всех метрик, имеющихся в хранилище
-	GetNames() []string
-	// Set добавляет метрику в хранилище. Если метрика с таким именем уже есть, то метрика перезапишется
-	Set(value metric.Measure)
-	// UpSet добавляет/обновляет метрику в хранилище. Если такая метрика уже есть, то обновляет ее значение
-	// новым значением из переданной метрики
-	UpSet(metric metric.Measure)
+	counters     map[string]*metric.Counter
+	gauges       map[string]*metric.Gauge
+	countersLock sync.Mutex
+	gaugesLock   sync.Mutex
 }
 
 // NewMemStorage возвращает новое хранилище в памяти
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
-		values: make(map[string]metric.Measure),
+		counters: make(map[string]*metric.Counter),
+		gauges:   make(map[string]*metric.Gauge),
 	}
 }
 
-func (ms *MemStorage) Get(name string) metric.Measure {
-	ms.lock.Lock()
-	defer ms.lock.Unlock()
+// GetCounter возвращает метрику Counter по имени name.
+// Будет возвращен nil, если метрика не найдена
+func (ms *MemStorage) GetCounter(name string) *metric.Counter {
+	ms.countersLock.Lock()
+	defer ms.countersLock.Unlock()
 
-	if m, ok := ms.values[name]; ok {
+	if m, ok := ms.counters[name]; ok {
 		return m
 	}
 	return nil
 }
 
-func (ms *MemStorage) GetNames() []string {
-	ms.lock.Lock()
-	defer ms.lock.Unlock()
+// GetGauge возвращает метрику Gauge по имени name.
+// Будет возвращен nil, если метрика не найдена
+func (ms *MemStorage) GetGauge(name string) *metric.Gauge {
+	ms.gaugesLock.Lock()
+	defer ms.gaugesLock.Unlock()
 
-	result := make([]string, 0, len(ms.values))
-	for name := range ms.values {
-		result = append(result, name)
+	if m, ok := ms.gauges[name]; ok {
+		return m
 	}
-	return result
+	return nil
 }
 
-func (ms *MemStorage) Set(value metric.Measure) {
-	ms.lock.Lock()
-	defer ms.lock.Unlock()
+// SetCounter сохраняет метрику Counter в хранилище
+func (ms *MemStorage) SetCounter(m *metric.Counter) {
+	if m == nil {
+		return
+	}
 
-	ms.values[value.GetName()] = value
+	ms.countersLock.Lock()
+	defer ms.countersLock.Unlock()
+
+	ms.counters[m.GetName()] = m
 }
 
-func (ms *MemStorage) UpSet(metric metric.Measure) {
-	if m := ms.Get(metric.GetName()); m != nil {
-		m.Update(metric.GetValue())
-	} else {
-		ms.Set(metric)
+// SetGauge сохраняет метрику Gauge в хранилище
+func (ms *MemStorage) SetGauge(m *metric.Gauge) {
+	if m == nil {
+		return
+	}
+
+	ms.gaugesLock.Lock()
+	defer ms.gaugesLock.Unlock()
+
+	ms.gauges[m.GetName()] = m
+}
+
+// Snapshot создает снимок метрик из хранилища
+func (ms *MemStorage) Snapshot(snap *metric.Snapshot) {
+
+	if snap == nil {
+		return
+	}
+
+	snap.Counters = make([]*metric.Counter, 0, len(ms.counters))
+	snap.Gauges = make([]*metric.Gauge, 0, len(ms.gauges))
+
+	ms.countersLock.Lock()
+	defer ms.countersLock.Unlock()
+	for _, v := range ms.counters {
+		snap.Counters = append(snap.Counters, metric.NewCounter(v.Name, v.Value))
+	}
+
+	ms.gaugesLock.Lock()
+	defer ms.gaugesLock.Unlock()
+	for _, v := range ms.gauges {
+		snap.Gauges = append(snap.Gauges, metric.NewGauge(v.Name, v.Value))
 	}
 }

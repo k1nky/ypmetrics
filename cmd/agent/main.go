@@ -1,20 +1,19 @@
 package main
 
 import (
-	"github.com/k1nky/ypmetrics/internal/agent"
-)
+	"fmt"
+	"os"
 
-var (
-	config *Config
+	"github.com/k1nky/ypmetrics/internal/agent"
+	"github.com/k1nky/ypmetrics/internal/config"
 )
 
 func main() {
-	var err error
-
-	config, err = Parse(nil)
-	if err != nil {
-		panic(err)
+	cfg := config.AgentConfig{}
+	if err := config.ParseAgentConfig(&cfg); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
-	a := agent.New(agent.WithEndpoint(config.Address.String()), agent.WithPollInterval(config.PollInterval), agent.WithReportInterval(config.ReportInterval))
+	a := agent.New(cfg)
 	a.Run()
 }

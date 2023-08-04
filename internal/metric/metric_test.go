@@ -1,94 +1,52 @@
 package metric
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestTypeIsValid(t *testing.T) {
-	tests := []struct {
-		name string
-		tr   Type
-		want bool
-	}{
-		{
-			name: "ValidCounter",
-			tr:   TypeCounter,
-			want: true,
-		},
-		{
-			name: "ValidGauge",
-			tr:   TypeGauge,
-			want: true,
-		},
-		{
-			name: "InvalidType",
-			tr:   "invalidtype",
-			want: false,
-		},
+func TestCounterUpdate(t *testing.T) {
+	type fields struct {
+		Name  string
+		Value int64
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.tr.IsValid(); got != tt.want {
-				t.Errorf("Type.IsValid() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestNew(t *testing.T) {
 	type args struct {
-		typ  Type
-		name string
+		value int64
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    Measure
-		wantErr bool
+		name   string
+		fields fields
+		args   args
+		want   *Counter
 	}{
 		{
-			name: "ValidCounter",
-			args: args{
-				typ:  TypeCounter,
-				name: "counter0",
-			},
-			want: &Counter{
-				Name: "counter0",
-			},
-			wantErr: false,
+			name:   "With zero value",
+			fields: fields{Name: "counter0", Value: 10},
+			args:   args{value: 0},
+			want:   &Counter{namedMetric: namedMetric{Name: "counter0"}, Value: 10},
 		},
 		{
-			name: "ValidGauge",
-			args: args{
-				typ:  TypeGauge,
-				name: "gauge0",
-			},
-			want: &Gauge{
-				Name: "gauge0",
-			},
-			wantErr: false,
+			name:   "With  positive value",
+			fields: fields{Name: "counter0", Value: 10},
+			args:   args{value: 10},
+			want:   &Counter{namedMetric: namedMetric{Name: "counter0"}, Value: 20},
 		},
 		{
-			name: "InvalidType",
-			args: args{
-				typ:  "NotCounter",
-				name: "notcounter",
-			},
-			want:    nil,
-			wantErr: true,
+			name:   "With negative value",
+			fields: fields{Name: "counter0", Value: 10},
+			args:   args{value: -20},
+			want:   &Counter{namedMetric: namedMetric{Name: "counter0"}, Value: -10},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := New(tt.args.typ, tt.args.name)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			c := &Counter{
+				namedMetric: namedMetric{Name: tt.fields.Name},
+				Value:       tt.fields.Value,
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("New() = %v, want %v", got, tt.want)
-			}
+			c.Update(tt.args.value)
+			assert.Equal(t, tt.want, c)
 		})
 	}
 }
@@ -99,169 +57,74 @@ func TestGaugeUpdate(t *testing.T) {
 		Value float64
 	}
 	type args struct {
-		value interface{}
+		value float64
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    float64
-		wantErr bool
+		name   string
+		fields fields
+		args   args
+		want   *Gauge
 	}{
 		{
-			name: "String float value",
-			fields: fields{
-				Name:  "",
-				Value: 0,
-			},
-			args: args{
-				value: "100.1",
-			},
-			want:    100.1,
-			wantErr: false,
+			name:   "With zero value",
+			fields: fields{Name: "gauge0", Value: 10},
+			args:   args{value: 0},
+			want:   &Gauge{namedMetric: namedMetric{Name: "gauge0"}, Value: 0},
 		},
 		{
-			name: "Float value",
-			fields: fields{
-				Name:  "",
-				Value: 0,
-			},
-			args: args{
-				value: 100.1,
-			},
-			want:    100.1,
-			wantErr: false,
+			name:   "With  positive value",
+			fields: fields{Name: "gauge0", Value: 10},
+			args:   args{value: 10.99},
+			want:   &Gauge{namedMetric: namedMetric{Name: "gauge0"}, Value: 10.99},
 		},
 		{
-			name: "String int value",
-			fields: fields{
-				Name:  "",
-				Value: 0,
-			},
-			args: args{
-				value: "100",
-			},
-			want:    100,
-			wantErr: false,
-		},
-		{
-			name: "Int value",
-			fields: fields{
-				Name:  "",
-				Value: 50,
-			},
-			args: args{
-				value: 100,
-			},
-			want:    50,
-			wantErr: true,
-		},
-		{
-			name: "String invalid value",
-			fields: fields{
-				Name:  "",
-				Value: 100,
-			},
-			args: args{
-				value: "invalidvalue",
-			},
-			want:    100,
-			wantErr: true,
+			name:   "With negative value",
+			fields: fields{Name: "gauge0", Value: 10},
+			args:   args{value: -20.11},
+			want:   &Gauge{namedMetric: namedMetric{Name: "gauge0"}, Value: -20.11},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			g := &Gauge{
-				Name:  tt.fields.Name,
-				Value: tt.fields.Value,
+			c := &Gauge{
+				namedMetric: namedMetric{Name: tt.fields.Name},
+				Value:       tt.fields.Value,
 			}
-			if err := g.Update(tt.args.value); (err != nil) != tt.wantErr {
-				t.Errorf("Gauge.Update() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if g.Value != tt.want {
-				t.Errorf("Gauge.Update() value = %f, want %f", g.Value, tt.want)
-			}
+			c.Update(tt.args.value)
+			assert.Equal(t, tt.want, c)
 		})
 	}
 }
 
-func TestCounterUpdate(t *testing.T) {
+func TestCounterString(t *testing.T) {
 	type fields struct {
 		Name  string
 		Value int64
 	}
-	type args struct {
-		value interface{}
-	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    int64
-		wantErr bool
+		name   string
+		fields fields
+		want   string
 	}{
 		{
-			name: "String value",
-			fields: fields{
-				Name:  "",
-				Value: 0,
-			},
-			args: args{
-				value: "15",
-			},
-			want:    15,
-			wantErr: false,
+			name:   "Full filled",
+			fields: fields{Name: "counter0", Value: 99},
+			want:   "99",
 		},
 		{
-			name: "Int value",
-			fields: fields{
-				Name:  "",
-				Value: 50,
-			},
-			args: args{
-				value: 100,
-			},
-			want:    150,
-			wantErr: false,
-		},
-		{
-			name: "Int64 value",
-			fields: fields{
-				Name:  "",
-				Value: 50,
-			},
-			args: args{
-				value: int64(100),
-			},
-			want:    150,
-			wantErr: false,
-		},
-		{
-			name: "String invalid value",
-			fields: fields{
-				Name:  "",
-				Value: 100,
-			},
-			args: args{
-				value: "10.1",
-			},
-			want:    100,
-			wantErr: true,
+			name:   "Without name",
+			fields: fields{Name: "", Value: 99},
+			want:   "99",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Counter{
-				Name:  tt.fields.Name,
-				Value: tt.fields.Value,
+			c := Counter{
+				namedMetric: namedMetric{Name: tt.fields.Name},
+				Value:       tt.fields.Value,
 			}
-			if err := c.Update(tt.args.value); (err != nil) != tt.wantErr {
-				t.Errorf("Counter.Update() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if c.Value != tt.want {
-				t.Errorf("Counter.Update() value = %d, want %d", c.Value, tt.want)
+			if got := c.String(); got != tt.want {
+				t.Errorf("Counter.String() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -278,30 +141,24 @@ func TestGaugeString(t *testing.T) {
 		want   string
 	}{
 		{
-			name: "Full filled",
-			fields: fields{
-				Name:  "gauge0",
-				Value: 1.0,
-			},
-			want: "gauge/gauge0/1.000000",
+			name:   "Full filled",
+			fields: fields{Name: "gauge0", Value: 99.99},
+			want:   "99.99",
 		},
 		{
-			name: "Empty name",
-			fields: fields{
-				Name:  "",
-				Value: 1.0,
-			},
-			want: "gauge//1.000000",
+			name:   "Without name",
+			fields: fields{Name: "", Value: 99.11},
+			want:   "99.11",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			g := &Gauge{
-				Name:  tt.fields.Name,
-				Value: tt.fields.Value,
+			c := Gauge{
+				namedMetric: namedMetric{Name: tt.fields.Name},
+				Value:       tt.fields.Value,
 			}
-			if got := g.String(); got != tt.want {
-				t.Errorf("Gauge.String() = %v, want %v", got, tt.want)
+			if got := c.String(); got != tt.want {
+				t.Errorf("Counter.String() = %v, want %v", got, tt.want)
 			}
 		})
 	}

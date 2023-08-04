@@ -4,12 +4,45 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/k1nky/ypmetrics/internal/metric"
-	"github.com/k1nky/ypmetrics/internal/server"
+	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestTypeIsValid(t *testing.T) {
+	tests := []struct {
+		name string
+		tr   typeMetric
+		want bool
+	}{
+		{
+			name: "ValidCounter",
+			tr:   TypeCounter,
+			want: true,
+		},
+		{
+			name: "ValidGauge",
+			tr:   TypeGauge,
+			want: true,
+		},
+		{
+			name: "InvalidType",
+			tr:   "invalidtype",
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.tr.IsValid(); got != tt.want {
+				t.Errorf("Type.IsValid() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestUpdateHandler(t *testing.T) {
 	type want struct {
@@ -38,14 +71,14 @@ func TestUpdateHandler(t *testing.T) {
 			name:    "Update metric without name #1",
 			request: "/update/counter//10",
 			want: want{
-				statusCode: http.StatusNotFound,
+				statusCode: http.StatusBadRequest,
 			},
 		},
 		{
 			name:    "Update metric without name #2",
 			request: "/update/counter/",
 			want: want{
-				statusCode: http.StatusNotFound,
+				statusCode: http.StatusTemporaryRedirect,
 			},
 		},
 		{
@@ -63,13 +96,15 @@ func TestUpdateHandler(t *testing.T) {
 			},
 		},
 	}
-	server := server.New()
-	handler := New(server)
+	ms := metric.NewSet(storage.NewMemStorage())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, tt.request, nil)
 			w := httptest.NewRecorder()
-			handler.ServeHTTP(w, request)
+			gin.SetMode(gin.TestMode)
+			c, r := gin.CreateTestContext(w)
+			r.POST("/update/:type/:name/:value", UpdateHandler(*ms))
+			c.Request = httptest.NewRequest(http.MethodPost, tt.request, nil)
+			r.ServeHTTP(w, c.Request)
 			result := w.Result()
 			defer result.Body.Close()
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
@@ -135,21 +170,32 @@ func TestValueHandler(t *testing.T) {
 				value:      "",
 			},
 		},
+		{
+			name:    "Unsupported type",
+			request: "/value/summary/counter1",
+			want: want{
+				statusCode: http.StatusNotFound,
+				value:      "",
+			},
+		},
 	}
-	server := server.New()
-	server.UpdateMetric(&metric.Counter{Name: "counter1", Value: 10})
-	server.UpdateMetric(&metric.Counter{Name: "counter2", Value: 10})
-	server.UpdateMetric(&metric.Counter{Name: "counter2", Value: 7})
-	server.UpdateMetric(&metric.Gauge{Name: "gauge1", Value: 10})
-	server.UpdateMetric(&metric.Gauge{Name: "gauge2", Value: 10.99})
-	server.UpdateMetric(&metric.Gauge{Name: "gauge2", Value: 0.9999})
 
-	handler := New(server)
+	ms := metric.NewSet(storage.NewMemStorage())
+	ms.UpdateCounter("counter1", 10)
+	ms.UpdateCounter("counter2", 10)
+	ms.UpdateCounter("counter2", 7)
+	ms.UpdateGauge("gauge1", 10)
+	ms.UpdateGauge("gauge2", 10.99)
+	ms.UpdateGauge("gauge2", 0.9999)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, tt.request, nil)
 			w := httptest.NewRecorder()
-			handler.ServeHTTP(w, request)
+			c, r := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, tt.request, nil)
+			gin.SetMode(gin.TestMode)
+			r.GET("/value/:type/:name", ValueHandler(*ms))
+			r.ServeHTTP(w, c.Request)
 			result := w.Result()
 			defer result.Body.Close()
 			body, err := io.ReadAll(result.Body)
@@ -161,48 +207,51 @@ func TestValueHandler(t *testing.T) {
 }
 
 func TestAllMetricsHandler(t *testing.T) {
-	s := server.New()
-	s.UpdateMetric(&metric.Counter{Name: "counter1", Value: 10})
-	s.UpdateMetric(&metric.Counter{Name: "counter2", Value: 10})
+	ms := metric.NewSet(storage.NewMemStorage())
+	ms.UpdateCounter("counter1", 10)
+	ms.UpdateCounter("counter2", 20)
 	type want struct {
 		statusCode int
 		value      string
 	}
 	tests := []struct {
-		name   string
-		server *server.Server
-		want   want
+		name      string
+		metricset *metric.Set
+		want      want
 	}{
 		{
 			name: "With values",
 			want: want{
 				statusCode: http.StatusOK,
-				value:      "counter1 = 10\ncounter2 = 10\n",
+				value:      "counter1 = 10\ncounter2 = 20\n",
 			},
-			server: s,
+			metricset: ms,
 		},
 		{
-			name: "Updated counter",
+			name: "Without values",
 			want: want{
 				statusCode: http.StatusOK,
 				value:      "",
 			},
-			server: server.New(),
+			metricset: metric.NewSet(storage.NewMemStorage()),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := New(tt.server)
-			request := httptest.NewRequest(http.MethodGet, "/", nil)
 			w := httptest.NewRecorder()
-			handler.ServeHTTP(w, request)
+			gin.SetMode(gin.TestMode)
+			c, r := gin.CreateTestContext(w)
+			r.GET("/", AllMetricsHandler(*tt.metricset))
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			r.ServeHTTP(w, c.Request)
+
 			result := w.Result()
 			defer result.Body.Close()
 			body, err := io.ReadAll(result.Body)
 			assert.NoError(t, err, "error while reading body")
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
-			assert.Equal(t, tt.want.value, string(body))
+			assert.ElementsMatch(t, strings.Split(tt.want.value, "\n"), strings.Split(string(body), "\n"))
 		})
 	}
 }

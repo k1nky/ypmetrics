@@ -1,41 +1,46 @@
 package apiclient
 
 import (
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/k1nky/ypmetrics/internal/handler"
-	"github.com/k1nky/ypmetrics/internal/metric"
-	"github.com/k1nky/ypmetrics/internal/server"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestUpdateMetric(t *testing.T) {
-	srv := server.New()
-	httpsrv := httptest.NewServer(handler.New(srv))
-	defer httpsrv.Close()
-	cli := New(WithEndpointURL(httpsrv.URL))
-	cli.httpclient = resty.NewWithClient(httpsrv.Client())
-
+func TestClient_PushMetric(t *testing.T) {
+	type args struct {
+		typ   string
+		name  string
+		value string
+	}
 	tests := []struct {
 		name    string
-		metric  metric.Measure
+		args    args
 		wantErr bool
 	}{
 		{
-			name: "Valid request",
-			metric: &metric.Counter{
-				Name:  "counter0",
-				Value: 10,
-			},
+			name:    "",
+			args:    args{typ: "counter", name: "c0", value: "10"},
 			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := cli.UpdateMetric(tt.metric); (err != nil) != tt.wantErr {
-				t.Errorf("UpdateMetric() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			httpserver := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				want := fmt.Sprintf("/update/%s/%s/%s", tt.args.typ, tt.args.name, tt.args.value)
+				assert.Equal(t, want, req.URL.Path)
+				rw.WriteHeader(http.StatusOK)
+			}))
+			defer httpserver.Close()
+			c := &Client{
+				EndpointURL: httpserver.URL,
+				httpclient:  resty.NewWithClient(httpserver.Client()),
+			}
+			if err := c.PushMetric(tt.args.typ, tt.args.name, tt.args.value); (err != nil) != tt.wantErr {
+				t.Errorf("Client.PushMetric() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

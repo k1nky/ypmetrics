@@ -5,20 +5,14 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/k1nky/ypmetrics/internal/metric"
 )
-
-const DefEndpointURL = "http://localhost:8080"
 
 var (
 	ErrUnexpectedStatusCode = errors.New("unexpected status code, want 200")
 )
-
-// Option опция конфигурации клиента сервера сбора метрик.
-// Используются при создании нового клиента через функцию New.
-type Option func(*Client)
 
 // Client клиент для сервера сбора метрик
 type Client struct {
@@ -27,30 +21,23 @@ type Client struct {
 	httpclient  *resty.Client
 }
 
-// WithEndpointURL задает URL сервера сбора метрик
-func WithEndpointURL(url string) Option {
-	return func(c *Client) {
-		c.EndpointURL = url
-	}
-}
-
 // New возвращает нового клиента для сервера сбора метрик
-func New(options ...Option) *Client {
-	c := &Client{
-		EndpointURL: DefEndpointURL,
-		httpclient:  resty.New(),
+func New(url string) *Client {
+	if !strings.HasPrefix(url, "http") {
+		url = "http://" + url
 	}
-	for _, opt := range options {
-		opt(c)
+	c := &Client{
+		EndpointURL: url,
+		httpclient:  resty.New(),
 	}
 	return c
 }
 
-// UpdateMetric отправляет значение указанной метрики на сервер
-func (c *Client) UpdateMetric(metric metric.Measure) (err error) {
+// PushMetric отправляет метрику на сервер
+func (c *Client) PushMetric(typ, name, value string) (err error) {
 	req := c.httpclient.R()
 	req.Method = http.MethodPost
-	if url, err := url.JoinPath(c.EndpointURL, "update", metric.String()); err != nil {
+	if url, err := url.JoinPath(c.EndpointURL, "update", typ, name, value); err != nil {
 		return err
 	} else {
 		req.URL = url

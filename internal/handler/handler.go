@@ -2,73 +2,122 @@
 package handler
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
-	"github.com/k1nky/ypmetrics/internal/metric"
-	"github.com/k1nky/ypmetrics/internal/server"
-
 	"github.com/gin-gonic/gin"
+	"github.com/k1nky/ypmetrics/internal/metric"
 )
 
-type handler struct {
-	srv *server.Server
-}
+// typeMetric тип метрики
+type typeMetric string
 
-// New возвращает новый обработчик HTTP запросов для сервера srv.
-func New(srv *server.Server) http.Handler {
-	h := &handler{
-		srv: srv,
+const (
+	TypeGauge   = typeMetric("gauge")
+	TypeCounter = typeMetric("counter")
+)
+
+// IsValid возвращает true, если тип метрики имеет допустимое значение.
+func (t typeMetric) IsValid() bool {
+	switch t {
+	case TypeGauge, TypeCounter:
+		return true
+	default:
+		return false
 	}
-	router := gin.New()
-	router.Use(gin.Logger(), gin.Recovery())
-
-	router.GET("/", h.allMetricsHandler)
-	valueRoutes := router.Group("/value")
-	valueRoutes.GET("/:type/:name", h.valueHandler)
-	updateRoutes := router.Group("/update")
-	updateRoutes.POST("/:type/", func(c *gin.Context) {
-		c.Status(http.StatusNotFound)
-	})
-	updateRoutes.POST("/:type/:name/:value", h.updateHandler)
-
-	return router
 }
 
-func (h *handler) allMetricsHandler(c *gin.Context) {
-	metrics := h.srv.GetAllMetrics()
-	result := strings.Builder{}
-	for _, m := range metrics {
-		result.WriteString(fmt.Sprintf("%s = %s\n", m.GetName(), m.StringValue()))
+// isValidMetricName возвращает true, если имя метрики имеет допустимое значение.
+func isValidMetricName(s string) bool {
+	return len(s) > 0
+}
+
+// Обработчик вывода всех метрик на сервере
+func AllMetricsHandler(ms metric.Set) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		metrics := ms.GetMetrics()
+		result := strings.Builder{}
+		for _, m := range metrics.Counters {
+			result.WriteString(fmt.Sprintf("%s = %s\n", m.Name, m))
+		}
+		for _, m := range metrics.Gauges {
+			result.WriteString(fmt.Sprintf("%s = %s\n", m.Name, m))
+		}
+		c.String(http.StatusOK, result.String())
 	}
-	c.String(http.StatusOK, result.String())
 }
 
-func (h *handler) valueHandler(c *gin.Context) {
-	m, err := h.srv.GetMetric(metric.Type(c.Param("type")), c.Param("name"))
+// Обработчик вывода текущего значения запрашиваемой метрики
+func ValueHandler(ms metric.Set) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		t := typeMetric(c.Param("type"))
+		if !t.IsValid() || !isValidMetricName(c.Param("name")) {
+			c.String(http.StatusNotFound, "")
+			return
+		}
+		strValue := ""
+		switch t {
+		case TypeCounter:
+			m := ms.GetCounter(c.Param("name"))
+			if m == nil {
+				c.String(http.StatusNotFound, "")
+				return
+			}
+			strValue = m.String()
+		case TypeGauge:
+			m := ms.GetGauge(c.Param("name"))
+			if m == nil {
+				c.String(http.StatusNotFound, "")
+				return
+			}
+			strValue = m.String()
+		}
+		c.String(http.StatusOK, strValue)
+	}
+}
+
+// Обработчик обновления значения указаной метрики
+func UpdateHandler(ms metric.Set) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		t := typeMetric(c.Param("type"))
+		if !t.IsValid() || !isValidMetricName(c.Param("name")) {
+			c.String(http.StatusBadRequest, "")
+			return
+		}
+		switch t {
+		case TypeCounter:
+			if v, err := convertToInt64(c.Param("value")); err != nil {
+				c.Status(http.StatusBadRequest)
+				return
+			} else {
+				ms.UpdateCounter(c.Param("name"), v)
+			}
+		case TypeGauge:
+			if v, err := convertToFloat64(c.Param("value")); err != nil {
+				c.Status(http.StatusBadRequest)
+				return
+			} else {
+				ms.UpdateGauge(c.Param("name"), v)
+			}
+		}
+		c.Status(http.StatusOK)
+	}
+}
+
+func convertToInt64(s string) (v int64, err error) {
+	v, err = strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		c.String(http.StatusBadRequest, "valid format: /value/<type>/<name>\n")
-		return
+		return 0, err
 	}
-	if m == nil {
-		c.String(http.StatusNotFound, "")
-		return
-	}
-	c.String(http.StatusOK, m.StringValue())
+	return
 }
 
-func (h *handler) updateHandler(c *gin.Context) {
-	m, err := metric.NewWtihValue(metric.Type(c.Param("type")), c.Param("name"), c.Param("value"))
-	if errors.Is(err, metric.ErrEmptyName) {
-		c.String(http.StatusNotFound, "%s", err)
-		return
-	}
+func convertToFloat64(s string) (v float64, err error) {
+	v, err = strconv.ParseFloat(s, 64)
 	if err != nil {
-		c.String(http.StatusBadRequest, "valid format: /update/<type>/<name>/<value>\n")
-		return
+		return 0, err
 	}
-	h.srv.UpdateMetric(m)
-	c.Status(http.StatusOK)
+	return
 }

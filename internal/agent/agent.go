@@ -5,98 +5,43 @@ import (
 	"fmt"
 	"math/rand"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/k1nky/ypmetrics/internal/apiclient"
+	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/metric"
 	"github.com/k1nky/ypmetrics/internal/storage"
 )
 
-const (
-	DefPollInterval   = 2 * time.Second
-	DefReportInterval = 10 * time.Second
-)
-
 type Agent struct {
-	storage storage.Storage
-	client  *apiclient.Client
-	// PollInterval интервал опроса метрик
-	PollInterval time.Duration
-	// ReportInterval интервал отправки метрик на сервер
-	ReportInterval time.Duration
+	metricSet *metric.Set
+	client    *apiclient.Client
+	Config    config.AgentConfig
 }
-
-// Option опция конфигурации агента.
-// Используются при создании нового агента через функцию New.
-type Option func(*Agent)
 
 // список метрик, которые берутся из пакета runtime
 var runtimeMetricsList = []string{"Alloc", "BuckHashSys", "Frees", "GCCPUFraction", "GCSys", "HeapAlloc", "HeapIdle", "HeapInuse", "HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups", "MCacheInuse", "MCacheSys", "MSpanInuse", "MSpanSys", "Mallocs", "NextGC", "NumForcedGC", "NumGC", "OtherSys", "PauseTotalNs", "StackInuse", "StackSys", "Sys", "TotalAlloc"}
 
-// WithStorage задает опцию, определяющее какое хранилище использовать для метрик
-func WithStorage(storage storage.Storage) Option {
-	return func(a *Agent) {
-		a.storage = storage
-	}
-}
-
-// WithEndpoint задает опцию, определяющее URL сервера сбора метрик
-func WithEndpoint(url string) Option {
-	return func(a *Agent) {
-		if !strings.HasPrefix(url, "http") {
-			url = "http://" + url
-		}
-		a.client.EndpointURL = url
-	}
-}
-
-// WithPollInterval задает опцию, определяющее интервал опроса метрик
-func WithPollInterval(interval time.Duration) Option {
-	return func(a *Agent) {
-		a.PollInterval = interval
-	}
-}
-
-// WithReportInterval задает опцию, определяющее интервал отправки метрик на сервер
-func WithReportInterval(interval time.Duration) Option {
-	return func(a *Agent) {
-		a.ReportInterval = interval
-	}
-}
-
 // New возвращает нового агента сбора метрик. По умолчанию в качестве хранилища используется MemStorage.
-func New(options ...Option) *Agent {
+func New(cfg config.AgentConfig) *Agent {
 
 	a := &Agent{
-		PollInterval:   DefPollInterval,
-		ReportInterval: DefReportInterval,
-		client:         apiclient.New(),
+		client: apiclient.New(cfg.Address.String()),
+		Config: cfg,
 	}
 
-	for _, opt := range options {
-		opt(a)
-	}
-	if a.storage == nil {
-		a.storage = storage.NewMemStorage()
-	}
+	a.metricSet = metric.NewSet(storage.NewMemStorage())
 
 	return a
 }
 
 func (a *Agent) setupPredefinedMetrics() {
 	for _, v := range runtimeMetricsList {
-		a.storage.Set(&metric.Gauge{
-			Name: v,
-		})
+		a.metricSet.UpdateGauge(v, 0)
 	}
-	a.storage.Set(&metric.Counter{
-		Name: "PollCounter",
-	})
-	a.storage.Set(&metric.Gauge{
-		Name: "RandomValue",
-	})
+	a.metricSet.UpdateCounter("PollCounter", 0)
+	a.metricSet.UpdateGauge("RandomValue", 0)
 }
 
 // Run запускает агента
@@ -113,7 +58,7 @@ func (a Agent) Run() {
 			if err := a.report(); err != nil {
 				fmt.Printf("report error: %s\n", err)
 			}
-			time.Sleep(a.ReportInterval)
+			time.Sleep(time.Duration(a.Config.ReportIntervalInSec) * time.Second)
 		}
 	}()
 	wg.Add(1)
@@ -121,19 +66,24 @@ func (a Agent) Run() {
 		defer wg.Done()
 		for {
 			a.pollRuntime()
-			a.storage.Get("PollCounter").Update(1)
-			a.storage.Get("RandomValue").Update(randomFloat())
+			a.metricSet.UpdateCounter("PollCounter", 1)
+			a.metricSet.UpdateGauge("RandomValue", randomFloat())
 			fmt.Println("start polling")
-			time.Sleep(a.PollInterval)
+			time.Sleep(time.Duration(a.Config.PollIntervalInSec) * time.Second)
 		}
 	}()
 	wg.Wait()
 }
 
 func (a Agent) report() error {
-	for _, name := range a.storage.GetNames() {
-		metric := a.storage.Get(name)
-		if err := a.client.UpdateMetric(metric); err != nil {
+	snap := a.metricSet.GetMetrics()
+	for _, m := range snap.Counters {
+		if err := a.client.PushMetric("counter", m.Name, m.String()); err != nil {
+			return err
+		}
+	}
+	for _, m := range snap.Gauges {
+		if err := a.client.PushMetric("gauge", m.Name, m.String()); err != nil {
 			return err
 		}
 	}
@@ -143,33 +93,33 @@ func (a Agent) report() error {
 func (a Agent) pollRuntime() {
 	memStat := &runtime.MemStats{}
 	runtime.ReadMemStats(memStat)
-	a.storage.Get("Alloc").Update(memStat.Alloc)
-	a.storage.Get("BuckHashSys").Update(memStat.BuckHashSys)
-	a.storage.Get("Frees").Update(memStat.Frees)
-	a.storage.Get("GCCPUFraction").Update(memStat.GCCPUFraction)
-	a.storage.Get("GCSys").Update(memStat.GCSys)
-	a.storage.Get("HeapAlloc").Update(memStat.HeapAlloc)
-	a.storage.Get("HeapIdle").Update(memStat.HeapIdle)
-	a.storage.Get("HeapInuse").Update(memStat.HeapInuse)
-	a.storage.Get("HeapObjects").Update(memStat.HeapObjects)
-	a.storage.Get("HeapReleased").Update(memStat.HeapReleased)
-	a.storage.Get("HeapSys").Update(memStat.HeapSys)
-	a.storage.Get("LastGC").Update(memStat.LastGC)
-	a.storage.Get("Lookups").Update(memStat.Lookups)
-	a.storage.Get("MCacheInuse").Update(memStat.MCacheInuse)
-	a.storage.Get("MCacheSys").Update(memStat.MCacheSys)
-	a.storage.Get("MSpanInuse").Update(memStat.MSpanInuse)
-	a.storage.Get("MSpanSys").Update(memStat.MSpanSys)
-	a.storage.Get("Mallocs").Update(memStat.Mallocs)
-	a.storage.Get("NextGC").Update(memStat.NextGC)
-	a.storage.Get("NumForcedGC").Update(memStat.NumForcedGC)
-	a.storage.Get("NumGC").Update(memStat.NumGC)
-	a.storage.Get("OtherSys").Update(memStat.OtherSys)
-	a.storage.Get("PauseTotalNs").Update(memStat.PauseTotalNs)
-	a.storage.Get("StackInuse").Update(memStat.StackInuse)
-	a.storage.Get("StackSys").Update(memStat.StackSys)
-	a.storage.Get("Sys").Update(memStat.Sys)
-	a.storage.Get("TotalAlloc").Update(memStat.TotalAlloc)
+	a.metricSet.UpdateGauge("Alloc", float64(memStat.Alloc))
+	a.metricSet.UpdateGauge("BuckHashSys", float64(memStat.BuckHashSys))
+	a.metricSet.UpdateGauge("Frees", float64(memStat.Frees))
+	a.metricSet.UpdateGauge("GCCPUFraction", float64(memStat.GCCPUFraction))
+	a.metricSet.UpdateGauge("GCSys", float64(memStat.GCSys))
+	a.metricSet.UpdateGauge("HeapAlloc", float64(memStat.HeapAlloc))
+	a.metricSet.UpdateGauge("HeapIdle", float64(memStat.HeapIdle))
+	a.metricSet.UpdateGauge("HeapInuse", float64(memStat.HeapInuse))
+	a.metricSet.UpdateGauge("HeapObjects", float64(memStat.HeapObjects))
+	a.metricSet.UpdateGauge("HeapReleased", float64(memStat.HeapReleased))
+	a.metricSet.UpdateGauge("HeapSys", float64(memStat.HeapSys))
+	a.metricSet.UpdateGauge("LastGC", float64(memStat.LastGC))
+	a.metricSet.UpdateGauge("Lookups", float64(memStat.Lookups))
+	a.metricSet.UpdateGauge("MCacheInuse", float64(memStat.MCacheInuse))
+	a.metricSet.UpdateGauge("MCacheSys", float64(memStat.MCacheSys))
+	a.metricSet.UpdateGauge("MSpanInuse", float64(memStat.MSpanInuse))
+	a.metricSet.UpdateGauge("MSpanSys", float64(memStat.MSpanSys))
+	a.metricSet.UpdateGauge("Mallocs", float64(memStat.Mallocs))
+	a.metricSet.UpdateGauge("NextGC", float64(memStat.NextGC))
+	a.metricSet.UpdateGauge("NumForcedGC", float64(memStat.NumForcedGC))
+	a.metricSet.UpdateGauge("NumGC", float64(memStat.NumGC))
+	a.metricSet.UpdateGauge("OtherSys", float64(memStat.OtherSys))
+	a.metricSet.UpdateGauge("PauseTotalNs", float64(memStat.PauseTotalNs))
+	a.metricSet.UpdateGauge("StackInuse", float64(memStat.StackInuse))
+	a.metricSet.UpdateGauge("StackSys", float64(memStat.StackSys))
+	a.metricSet.UpdateGauge("Sys", float64(memStat.Sys))
+	a.metricSet.UpdateGauge("TotalAlloc", float64(memStat.TotalAlloc))
 }
 
 func randomFloat() float64 {
