@@ -43,12 +43,12 @@ func (nm namedMetric) GetName() string {
 }
 
 // String возвращает строковое предствление метрики в формате <тип><имя><значение>
-func (c Counter) String() string {
+func (c *Counter) String() string {
 	return fmt.Sprintf("%d", c.Value)
 }
 
 // String возвращает строковое предствление метрики в формате <тип><имя><значение>
-func (g Gauge) String() string {
+func (g *Gauge) String() string {
 	return fmt.Sprintf("%g", g.Value)
 }
 
