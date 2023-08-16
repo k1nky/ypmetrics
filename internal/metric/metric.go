@@ -42,12 +42,12 @@ func (nm namedMetric) GetName() string {
 	return nm.Name
 }
 
-// String возвращает строковое предствление метрики в формате <тип><имя><значение>
+// String возвращает строковое значение счетчика
 func (c *Counter) String() string {
 	return fmt.Sprintf("%d", c.Value)
 }
 
-// String возвращает строковое предствление метрики в формате <тип><имя><значение>
+// String возвращает строковое предствление "измерителя"
 func (g *Gauge) String() string {
 	return fmt.Sprintf("%g", g.Value)
 }
