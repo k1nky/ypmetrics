@@ -6,14 +6,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type logger interface {
-	Info(args ...interface{})
+type requestLogger interface {
+	Info(template string, args ...interface{})
 }
 
-func Logger(l logger) gin.HandlerFunc {
+func Logger(l requestLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		c.Next()
-		l.Info(c.Request.Method, c.Request.RequestURI, "status", c.Writer.Status(), "size", c.Writer.Size(), "duration", time.Since(start))
+		size := c.Writer.Size()
+		if size < 0 {
+			size = 0
+		}
+		l.Info("%s %s status %d size %d duration %s", c.Request.Method, c.Request.RequestURI, c.Writer.Status(), size, time.Since(start))
 	}
 }

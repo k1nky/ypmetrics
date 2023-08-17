@@ -32,10 +32,10 @@ func New() *Logger {
 	}
 }
 
-func (l *Logger) Info(args ...interface{}) {
-	l.zapLogger.Info(fmt.Sprint(args...))
+func (l *Logger) Info(template string, args ...interface{}) {
+	l.zapLogger.Info(fmt.Sprintf(template, args...))
 }
 
-func (l *Logger) Error(args ...interface{}) {
-	l.zapLogger.Error(fmt.Sprint(args...))
+func (l *Logger) Error(template string, args ...interface{}) {
+	l.zapLogger.Error(fmt.Sprintf(template, args...))
 }

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/metricset/server"
 )
 
 // typeMetric тип метрики
@@ -35,7 +35,7 @@ func isValidMetricName(s string) bool {
 }
 
 // Обработчик вывода всех метрик на сервере
-func AllMetricsHandler(ms metric.Set) gin.HandlerFunc {
+func AllMetricsHandler(ms server.Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		metrics := ms.GetMetrics()
 		result := strings.Builder{}
@@ -50,7 +50,7 @@ func AllMetricsHandler(ms metric.Set) gin.HandlerFunc {
 }
 
 // Обработчик вывода текущего значения запрашиваемой метрики
-func ValueHandler(ms metric.Set) gin.HandlerFunc {
+func ValueHandler(ms server.Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		t := typeMetric(c.Param("type"))
 		if !t.IsValid() || !isValidMetricName(c.Param("name")) {
@@ -79,7 +79,7 @@ func ValueHandler(ms metric.Set) gin.HandlerFunc {
 }
 
 // Обработчик обновления значения указаной метрики
-func UpdateHandler(ms metric.Set) gin.HandlerFunc {
+func UpdateHandler(ms server.Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		t := typeMetric(c.Param("type"))
 		if !t.IsValid() || !isValidMetricName(c.Param("name")) {

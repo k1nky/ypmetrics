@@ -1,26 +1,28 @@
-package metric
+package metricset
 
-type metricStorage interface {
-	GetCounter(name string) *Counter
-	GetGauge(name string) *Gauge
-	SetCounter(*Counter)
-	SetGauge(*Gauge)
+import "github.com/k1nky/ypmetrics/internal/metric"
+
+type metricSetStorage interface {
+	GetCounter(name string) *metric.Counter
+	GetGauge(name string) *metric.Gauge
+	SetCounter(*metric.Counter)
+	SetGauge(*metric.Gauge)
 	Snapshot(*Snapshot)
 }
 
 // Set представляет собой набор метрик, формат хранения которых определяется storage.
 type Set struct {
-	storage metricStorage
+	storage metricSetStorage
 }
 
 // Snapshot срез текущих метрик в наборе
 type Snapshot struct {
-	Counters []*Counter
-	Gauges   []*Gauge
+	Counters []*metric.Counter
+	Gauges   []*metric.Gauge
 }
 
 // NewSet возвращает новый набор метрик для хранения, которых будет использоваться storage.
-func NewSet(storage metricStorage) *Set {
+func NewSet(storage metricSetStorage) *Set {
 	s := &Set{
 		storage: storage,
 	}
@@ -30,37 +32,37 @@ func NewSet(storage metricStorage) *Set {
 
 // GetCounter возвращает счетчик с именем name из набора.
 // Если счетчик не найден будет возвращен nil.
-func (s Set) GetCounter(name string) *Counter {
+func (s Set) GetCounter(name string) *metric.Counter {
 	return s.storage.GetCounter(name)
 }
 
 // GetOrCreateCounter возвращает  из набора счетчик с именем name.
 // Если метрика не найдена, то будет возвращена и зарегистрирована новая метрика в наборе.
-func (s Set) GetOrCreateCounter(name string) *Counter {
+func (s Set) GetOrCreateCounter(name string) *metric.Counter {
 	m := s.GetCounter(name)
 	if m != nil {
 		return m
 	}
-	m = NewCounter(name, 0)
+	m = metric.NewCounter(name, 0)
 	s.storage.SetCounter(m)
 	return m
 }
 
 // GetOrCreateGauge возвращает из набора метрику типа Gauge с именем name.
 // Если метрика не найдена, то будет возвращена и зарегистрирована новая метрика в наборе.
-func (s Set) GetOrCreateGauge(name string) *Gauge {
+func (s Set) GetOrCreateGauge(name string) *metric.Gauge {
 	m := s.GetGauge(name)
 	if m != nil {
 		return m
 	}
-	m = NewGauge(name, 0)
+	m = metric.NewGauge(name, 0)
 	s.storage.SetGauge(m)
 	return m
 }
 
 // GetCounter возвращает метрику типа Gauge с именем name из набора.
 // Если метрика не найдена будет возвращен nil.
-func (s Set) GetGauge(name string) *Gauge {
+func (s Set) GetGauge(name string) *metric.Gauge {
 	return s.storage.GetGauge(name)
 }
 

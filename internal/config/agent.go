@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"time"
 
 	"github.com/caarlos0/env/v6"
 	flag "github.com/spf13/pflag"
@@ -21,6 +22,14 @@ const (
 	DefPollIntervalInSec   = 2
 	DefReportIntervalInSec = 10
 )
+
+func (c AgentConfig) ReportInterval() time.Duration {
+	return time.Duration(c.ReportIntervalInSec) * time.Second
+}
+
+func (c AgentConfig) PollInterval() time.Duration {
+	return time.Duration(c.PollIntervalInSec) * time.Second
+}
 
 func parseAgentConfigFromCmd(c *AgentConfig) error {
 	cmd := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)

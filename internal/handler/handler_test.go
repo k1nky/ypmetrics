@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/logger"
+	"github.com/k1nky/ypmetrics/internal/metricset/server"
 	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/stretchr/testify/assert"
 )
@@ -96,7 +97,7 @@ func TestUpdateHandler(t *testing.T) {
 			},
 		},
 	}
-	ms := metric.NewSet(storage.NewMemStorage())
+	ms := server.New(storage.NewMemStorage(), logger.New())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
@@ -180,7 +181,7 @@ func TestValueHandler(t *testing.T) {
 		},
 	}
 
-	ms := metric.NewSet(storage.NewMemStorage())
+	ms := server.New(storage.NewMemStorage(), logger.New())
 	ms.UpdateCounter("counter1", 10)
 	ms.UpdateCounter("counter2", 10)
 	ms.UpdateCounter("counter2", 7)
@@ -207,7 +208,7 @@ func TestValueHandler(t *testing.T) {
 }
 
 func TestAllMetricsHandler(t *testing.T) {
-	ms := metric.NewSet(storage.NewMemStorage())
+	ms := server.New(storage.NewMemStorage(), logger.New())
 	ms.UpdateCounter("counter1", 10)
 	ms.UpdateCounter("counter2", 20)
 	type want struct {
@@ -215,9 +216,9 @@ func TestAllMetricsHandler(t *testing.T) {
 		value      string
 	}
 	tests := []struct {
-		name      string
-		metricset *metric.Set
-		want      want
+		name string
+		ms   *server.Server
+		want want
 	}{
 		{
 			name: "With values",
@@ -225,7 +226,7 @@ func TestAllMetricsHandler(t *testing.T) {
 				statusCode: http.StatusOK,
 				value:      "counter1 = 10\ncounter2 = 20\n",
 			},
-			metricset: ms,
+			ms: ms,
 		},
 		{
 			name: "Without values",
@@ -233,7 +234,7 @@ func TestAllMetricsHandler(t *testing.T) {
 				statusCode: http.StatusOK,
 				value:      "",
 			},
-			metricset: metric.NewSet(storage.NewMemStorage()),
+			ms: server.New(storage.NewMemStorage(), logger.New()),
 		},
 	}
 
@@ -242,7 +243,7 @@ func TestAllMetricsHandler(t *testing.T) {
 			w := httptest.NewRecorder()
 			gin.SetMode(gin.TestMode)
 			c, r := gin.CreateTestContext(w)
-			r.GET("/", AllMetricsHandler(*tt.metricset))
+			r.GET("/", AllMetricsHandler(*tt.ms))
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 			r.ServeHTTP(w, c.Request)
 

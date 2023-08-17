@@ -8,7 +8,7 @@ import (
 	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/handler"
 	"github.com/k1nky/ypmetrics/internal/logger"
-	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/metricset/server"
 	"github.com/k1nky/ypmetrics/internal/storage"
 )
 
@@ -20,7 +20,7 @@ func main() {
 	logger := logger.New()
 	cfg := config.ServerConfig{}
 	if err := config.ParseServerConfig(&cfg); err != nil {
-		logger.Error(err)
+		logger.Error("config: %s", err)
 		os.Exit(1)
 	}
 	if err := run(cfg, logger); err != nil {
@@ -30,7 +30,7 @@ func main() {
 
 func run(cfg config.ServerConfig, l *logger.Logger) error {
 
-	ms := metric.NewSet(storage.NewMemStorage())
+	ms := server.New(storage.NewMemStorage(), l)
 
 	router := gin.New()
 	router.Use(handler.Logger(l))
@@ -43,6 +43,6 @@ func run(cfg config.ServerConfig, l *logger.Logger) error {
 	})
 	updateRoutes.POST("/:type/:name/:value", handler.UpdateHandler(*ms))
 
-	l.Info("starting on ", cfg.Address)
+	l.Info("starting on %s", cfg.Address)
 	return http.ListenAndServe(cfg.Address.String(), router)
 }

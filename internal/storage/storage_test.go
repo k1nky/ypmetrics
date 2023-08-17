@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/metricset"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -183,13 +184,13 @@ func TestMemStorageSnapshot(t *testing.T) {
 		gauges   map[string]*metric.Gauge
 	}
 	type args struct {
-		snap *metric.Snapshot
+		snap *metricset.Snapshot
 	}
 	tests := []struct {
 		name   string
 		fields fields
 		args   args
-		want   *metric.Snapshot
+		want   *metricset.Snapshot
 	}{
 		{
 			name: "Snapshot #1",
@@ -197,8 +198,8 @@ func TestMemStorageSnapshot(t *testing.T) {
 				counters: map[string]*metric.Counter{"c0": metric.NewCounter("c0", 10), "c1": metric.NewCounter("c1", 23)},
 				gauges:   map[string]*metric.Gauge{"g1": metric.NewGauge("g1", 99.99)},
 			},
-			args: args{snap: &metric.Snapshot{}},
-			want: &metric.Snapshot{
+			args: args{snap: &metricset.Snapshot{}},
+			want: &metricset.Snapshot{
 				Counters: []*metric.Counter{metric.NewCounter("c0", 10), metric.NewCounter("c1", 23)},
 				Gauges:   []*metric.Gauge{metric.NewGauge("g1", 99.99)},
 			},
