@@ -29,7 +29,8 @@ type agentLogger interface {
 }
 
 type sender interface {
-	PushMetric(typ, name, value string) (err error)
+	PushCounter(name string, value int64) (err error)
+	PushGauge(name string, value float64) (err error)
 }
 
 type Agent struct {
@@ -104,12 +105,12 @@ func (a Agent) Run() {
 func (a Agent) report() error {
 	snap := a.GetMetrics()
 	for _, m := range snap.Counters {
-		if err := a.client.PushMetric("counter", m.Name, m.String()); err != nil {
+		if err := a.client.PushCounter(m.Name, m.Value); err != nil {
 			return err
 		}
 	}
 	for _, m := range snap.Gauges {
-		if err := a.client.PushMetric("gauge", m.Name, m.String()); err != nil {
+		if err := a.client.PushGauge(m.Name, m.Value); err != nil {
 			return err
 		}
 	}

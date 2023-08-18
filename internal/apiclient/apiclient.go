@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 )
@@ -21,6 +22,13 @@ type Client struct {
 	httpclient  *resty.Client
 }
 
+type pushJSONRequest struct {
+	ID    string   `json:"id"`              // имя метрики
+	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
+	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
+	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
+}
+
 // New возвращает нового клиента для сервера сбора метрик
 func New(url string) *Client {
 	if !strings.HasPrefix(url, "http") {
@@ -28,22 +36,21 @@ func New(url string) *Client {
 	}
 	c := &Client{
 		EndpointURL: url,
-		httpclient:  resty.New(),
+		httpclient:  resty.New().SetTimeout(5 * time.Second),
 	}
 	return c
 }
 
 // PushMetric отправляет метрику на сервер
 func (c *Client) PushMetric(typ, name, value string) (err error) {
-	req := c.httpclient.R()
-	req.Method = http.MethodPost
-	if url, err := url.JoinPath(c.EndpointURL, "update", typ, name, value); err != nil {
+	var (
+		requestURL string
+		resp       *resty.Response
+	)
+	if requestURL, err = url.JoinPath(c.EndpointURL, "update", typ, name, value); err != nil {
 		return err
-	} else {
-		req.URL = url
 	}
-	resp, err := req.Send()
-	if err != nil {
+	if resp, err = c.httpclient.R().Post(requestURL); err != nil {
 		return err
 	}
 	if resp.StatusCode() != http.StatusOK {
@@ -51,4 +58,54 @@ func (c *Client) PushMetric(typ, name, value string) (err error) {
 	}
 
 	return
+}
+
+func (c *Client) PushCounter(name string, value int64) (err error) {
+	var (
+		requestURL string
+		resp       *resty.Response
+	)
+
+	if requestURL, err = url.JoinPath(c.EndpointURL, "update/"); err != nil {
+		return
+	}
+	if resp, err = c.httpclient.R().
+		SetHeader("content-type", "application/json").
+		SetBody(pushJSONRequest{
+			ID:    name,
+			MType: "counter",
+			Delta: &value,
+		}).
+		Post(requestURL); err != nil {
+		return
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return ErrUnexpectedStatusCode
+	}
+	return nil
+}
+
+func (c *Client) PushGauge(name string, value float64) (err error) {
+	var (
+		requestURL string
+		resp       *resty.Response
+	)
+
+	if requestURL, err = url.JoinPath(c.EndpointURL, "update/"); err != nil {
+		return
+	}
+	if resp, err = c.httpclient.R().
+		SetHeader("content-type", "application/json").
+		SetBody(pushJSONRequest{
+			ID:    name,
+			MType: "gauge",
+			Value: &value,
+		}).
+		Post(requestURL); err != nil {
+		return
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return ErrUnexpectedStatusCode
+	}
+	return nil
 }
