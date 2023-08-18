@@ -9,6 +9,6 @@ type PollCounter struct{}
 
 func (pc PollCounter) Collect() (metricset.Snapshot, error) {
 	return metricset.Snapshot{
-		Counters: []*metric.Counter{metric.NewCounter("PollCounter", 1)},
+		Counters: []*metric.Counter{metric.NewCounter("PollCount", 1)},
 	}, nil
 }

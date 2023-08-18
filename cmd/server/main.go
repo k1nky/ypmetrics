@@ -18,31 +18,40 @@ func init() {
 
 func main() {
 	logger := logger.New()
+
 	cfg := config.ServerConfig{}
 	if err := config.ParseServerConfig(&cfg); err != nil {
 		logger.Error("config: %s", err)
 		os.Exit(1)
 	}
-	if err := run(cfg, logger); err != nil {
+
+	router := newRouter(cfg, logger)
+	logger.Info("starting on %s", cfg.Address)
+
+	if err := http.ListenAndServe(cfg.Address.String(), router); err != nil {
 		panic(err)
 	}
 }
 
-func run(cfg config.ServerConfig, l *logger.Logger) error {
-
-	ms := server.New(storage.NewMemStorage(), l)
+func newRouter(cfg config.ServerConfig, l *logger.Logger) *gin.Engine {
+	metrics := server.New(storage.NewMemStorage(), l)
+	h := handler.New(metrics)
 
 	router := gin.New()
 	router.Use(handler.Logger(l))
-	router.GET("/", handler.AllMetricsHandler(*ms))
+
+	router.GET("/", h.AllMetrics())
+
 	valueRoutes := router.Group("/value")
-	valueRoutes.GET("/:type/:name", handler.ValueHandler(*ms))
+	valueRoutes.POST("/", handler.RequireJSON(), h.ValueJSON())
+	valueRoutes.GET("/:type/:name", h.Value())
+
 	updateRoutes := router.Group("/update")
+	updateRoutes.POST("/", handler.RequireJSON(), h.UpdateJSON())
 	updateRoutes.POST("/:type/", func(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 	})
-	updateRoutes.POST("/:type/:name/:value", handler.UpdateHandler(*ms))
+	updateRoutes.POST("/:type/:name/:value", h.Update())
 
-	l.Info("starting on %s", cfg.Address)
-	return http.ListenAndServe(cfg.Address.String(), router)
+	return router
 }
