@@ -43,11 +43,11 @@ func newRouter(cfg config.ServerConfig, l *logger.Logger) *gin.Engine {
 	router.GET("/", h.AllMetrics())
 
 	valueRoutes := router.Group("/value")
-	valueRoutes.POST("/", handler.RequireJSON(), h.ValueJSON())
+	valueRoutes.POST("/", handler.RequireContentType("application/json"), h.ValueJSON())
 	valueRoutes.GET("/:type/:name", h.Value())
 
 	updateRoutes := router.Group("/update")
-	updateRoutes.POST("/", handler.RequireJSON(), h.UpdateJSON())
+	updateRoutes.POST("/", handler.RequireContentType("application/json"), h.UpdateJSON())
 	updateRoutes.POST("/:type/", func(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 	})

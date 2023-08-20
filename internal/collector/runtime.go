@@ -7,9 +7,9 @@ import (
 	"github.com/k1nky/ypmetrics/internal/metricset"
 )
 
-type RuntimeCollector struct{}
+type Runtime struct{}
 
-func (rc RuntimeCollector) Collect() (metricset.Snapshot, error) {
+func (rc Runtime) Collect() (metricset.Snapshot, error) {
 	memStat := &runtime.MemStats{}
 	runtime.ReadMemStats(memStat)
 	return metricset.Snapshot{

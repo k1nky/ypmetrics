@@ -18,11 +18,10 @@ func main() {
 		l.Error("config: %s", err)
 		os.Exit(1)
 	}
+	// для агента храним метрики в памяти
 	stor := storage.NewMemStorage()
 	client := apiclient.New(string(cfg.Address))
 	a := agent.New(cfg, stor, l, client)
-	a.AddCollector(collector.PollCounter{})
-	a.AddCollector(collector.RandomCollector{})
-	a.AddCollector(collector.RuntimeCollector{})
+	a.AddCollector(collector.PollCounter{}, collector.Random{}, collector.Runtime{})
 	a.Run()
 }

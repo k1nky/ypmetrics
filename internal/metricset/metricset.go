@@ -10,7 +10,8 @@ type metricSetStorage interface {
 	Snapshot(*Snapshot)
 }
 
-// Set представляет собой набор метрик, формат хранения которых определяется storage.
+// Set представляет собой обобщенный набор метрик, основной вункционал которого
+// получение и обновление метрик.
 type Set struct {
 	storage metricSetStorage
 }

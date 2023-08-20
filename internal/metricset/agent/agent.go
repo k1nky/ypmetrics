@@ -1,8 +1,6 @@
-// Пакет agent реализует агента сбора метрик
 package agent
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -24,6 +22,7 @@ type agentStorage interface {
 }
 
 type agentLogger interface {
+	Debug(template string, args ...interface{})
 	Info(template string, args ...interface{})
 	Error(template string, args ...interface{})
 }
@@ -33,6 +32,9 @@ type sender interface {
 	PushGauge(name string, value float64) (err error)
 }
 
+// Agent представляет собой набор метрик с расширенным функционалом.
+// Расширенный функционал позволяет наполнять набор метриками, полученными из сборщиков (Collector),
+// и периодически отправлять обновления метрик.
 type Agent struct {
 	metricset.Set
 	collectors []Collector
@@ -55,8 +57,9 @@ func New(cfg config.AgentConfig, storage agentStorage, l agentLogger, client sen
 	}
 }
 
-func (a *Agent) AddCollector(c Collector) {
-	a.collectors = append(a.collectors, c)
+// AddCollector добавляет совместимый сборщик для получения метрик.
+func (a *Agent) AddCollector(collectors ...Collector) {
+	a.collectors = append(a.collectors, collectors...)
 }
 
 // Run запускает агента
@@ -68,8 +71,9 @@ func (a Agent) Run() {
 	go func() {
 		defer wg.Done()
 		for {
+			a.logger.Debug("sending updates")
 			if err := a.report(); err != nil {
-				fmt.Printf("report error: %s\n", err)
+				a.logger.Error("report error: %s", err)
 			}
 			time.Sleep(a.Config.ReportInterval())
 		}
@@ -78,20 +82,20 @@ func (a Agent) Run() {
 	go func() {
 		defer wg.Done()
 		for {
-			fmt.Println("start polling")
 			for _, collector := range a.collectors {
-				snap, err := collector.Collect()
+				a.logger.Debug("start polling %T", collector)
+				m, err := collector.Collect()
 				if err != nil {
-					a.logger.Error("collector: %s", err)
+					a.logger.Error("collector %T: %s", collector, err)
 					continue
 				}
-				if len(snap.Counters) != 0 {
-					for _, c := range snap.Counters {
+				if len(m.Counters) != 0 {
+					for _, c := range m.Counters {
 						a.UpdateCounter(c.Name, c.Value)
 					}
 				}
-				if len(snap.Gauges) != 0 {
-					for _, g := range snap.Gauges {
+				if len(m.Gauges) != 0 {
+					for _, g := range m.Gauges {
 						a.UpdateGauge(g.Name, g.Value)
 					}
 				}

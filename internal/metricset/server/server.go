@@ -9,6 +9,7 @@ type serverLogger interface {
 	Info(template string, args ...interface{})
 }
 
+// Server представляет собой набор метрик с расширенным функционалом (но не прямо сейчас).
 type Server struct {
 	metricset.Set
 	logger serverLogger

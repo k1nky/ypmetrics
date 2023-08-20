@@ -8,9 +8,9 @@ import (
 	"github.com/k1nky/ypmetrics/internal/metricset"
 )
 
-type RandomCollector struct{}
+type Random struct{}
 
-func (rc RandomCollector) Collect() (metricset.Snapshot, error) {
+func (rc Random) Collect() (metricset.Snapshot, error) {
 	return metricset.Snapshot{
 		Gauges: []*metric.Gauge{metric.NewGauge("RandomValue", randomFloat())},
 	}, nil

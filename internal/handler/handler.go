@@ -8,17 +8,21 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/k1nky/ypmetrics/internal/metricset/server"
+	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/metricset"
 )
 
-type Handler struct {
-	metrics *server.Server
+type metricSet interface {
+	GetMetrics() metricset.Snapshot
+	GetCounter(name string) *metric.Counter
+	GetGauge(name string) *metric.Gauge
+	UpdateCounter(name string, value int64)
+	UpdateGauge(name string, value float64)
 }
 
-func New(metricset *server.Server) Handler {
-	return Handler{
-		metrics: metricset,
-	}
+// Обработчик запросов к REST API набора метрик
+type Handler struct {
+	metrics metricSet
 }
 
 type Metrics struct {
@@ -26,6 +30,12 @@ type Metrics struct {
 	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
 	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
+}
+
+func New(metricset metricSet) Handler {
+	return Handler{
+		metrics: metricset,
+	}
 }
 
 // Обработчик вывода всех метрик на сервере
@@ -72,6 +82,7 @@ func (h Handler) Value() gin.HandlerFunc {
 	}
 }
 
+// Обработчик вывода текущего значения запрашиваемой метрики в формате JSON
 func (h Handler) ValueJSON() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var m Metrics
@@ -132,6 +143,7 @@ func (h Handler) Update() gin.HandlerFunc {
 	}
 }
 
+// Обработчик обновления значения указаной метрики из JSON
 func (h Handler) UpdateJSON() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var m Metrics

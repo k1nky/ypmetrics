@@ -13,6 +13,7 @@ type requestLogger interface {
 	Info(template string, args ...interface{})
 }
 
+// Logger это middleware для  логирования запросов и ответов
 func Logger(l requestLogger) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		start := time.Now()
@@ -26,6 +27,7 @@ func Logger(l requestLogger) gin.HandlerFunc {
 	}
 }
 
+// LoggerWithBody это middleware для  логирования запросов (включая тело запроса) и ответов
 func LoggerWithBody(l requestLogger) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		start := time.Now()
@@ -44,9 +46,10 @@ func LoggerWithBody(l requestLogger) gin.HandlerFunc {
 	}
 }
 
-func RequireJSON() gin.HandlerFunc {
+// RequireContentType это middleware, который определяет требование для значения заголовка ContentType
+func RequireContentType(contentType string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		if ctx.ContentType() != "application/json" {
+		if ctx.ContentType() != contentType {
 			ctx.AbortWithStatus(http.StatusBadRequest)
 		}
 		ctx.Next()
