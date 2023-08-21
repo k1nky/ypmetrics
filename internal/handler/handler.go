@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/k1nky/ypmetrics/internal/metric"
 	"github.com/k1nky/ypmetrics/internal/metricset"
+	"github.com/k1nky/ypmetrics/internal/protocol"
 )
 
 type metricSet interface {
@@ -23,13 +24,6 @@ type metricSet interface {
 // Обработчик запросов к REST API набора метрик
 type Handler struct {
 	metrics metricSet
-}
-
-type Metrics struct {
-	ID    string   `json:"id"`              // имя метрики
-	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
-	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
-	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 }
 
 func New(metricset metricSet) Handler {
@@ -85,7 +79,7 @@ func (h Handler) Value() gin.HandlerFunc {
 // Обработчик вывода текущего значения запрашиваемой метрики в формате JSON
 func (h Handler) ValueJSON() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var m Metrics
+		var m protocol.Metrics
 		if err := json.NewDecoder(ctx.Request.Body).Decode(&m); err != nil {
 			ctx.Status(http.StatusBadRequest)
 			return
@@ -146,7 +140,7 @@ func (h Handler) Update() gin.HandlerFunc {
 // Обработчик обновления значения указаной метрики из JSON
 func (h Handler) UpdateJSON() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var m Metrics
+		var m protocol.Metrics
 		if err := json.NewDecoder(ctx.Request.Body).Decode(&m); err != nil {
 			ctx.Status(http.StatusBadRequest)
 			return

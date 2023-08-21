@@ -13,6 +13,7 @@ import (
 	"github.com/k1nky/ypmetrics/internal/logger"
 	"github.com/k1nky/ypmetrics/internal/metric"
 	"github.com/k1nky/ypmetrics/internal/metricset/server"
+	"github.com/k1nky/ypmetrics/internal/protocol"
 	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/stretchr/testify/assert"
 )
@@ -157,7 +158,7 @@ func TestUpdate(t *testing.T) {
 func TestUpdateJSON(t *testing.T) {
 	type want struct {
 		statusCode int
-		m          Metrics
+		m          protocol.Metrics
 	}
 	tests := []struct {
 		name    string
@@ -169,7 +170,7 @@ func TestUpdateJSON(t *testing.T) {
 			request: `{"id": "c0", "type": "counter", "delta": 10}`,
 			want: want{
 				statusCode: http.StatusOK,
-				m:          Metrics{ID: "c0", MType: "counter", Delta: newInt64(10)},
+				m:          protocol.Metrics{ID: "c0", MType: "counter", Delta: newInt64(10)},
 			},
 		},
 		{
@@ -177,7 +178,7 @@ func TestUpdateJSON(t *testing.T) {
 			request: `{"id": "g0", "type": "gauge", "value": 0.1}`,
 			want: want{
 				statusCode: http.StatusOK,
-				m:          Metrics{ID: "g0", MType: "gauge", Value: newFloat64(0.1)},
+				m:          protocol.Metrics{ID: "g0", MType: "gauge", Value: newFloat64(0.1)},
 			},
 		},
 		{
@@ -242,7 +243,7 @@ func TestUpdateJSON(t *testing.T) {
 			if result.StatusCode != http.StatusOK {
 				return
 			}
-			m := Metrics{}
+			m := protocol.Metrics{}
 			err := json.NewDecoder(result.Body).Decode(&m)
 			if !assert.NoError(t, err, "error while decoding") {
 				return
@@ -332,7 +333,7 @@ func TestValue(t *testing.T) {
 func TestValueJSON(t *testing.T) {
 	type want struct {
 		statusCode int
-		value      Metrics
+		value      protocol.Metrics
 	}
 	tests := []struct {
 		name    string
@@ -344,7 +345,7 @@ func TestValueJSON(t *testing.T) {
 			request: `{"id": "c1", "type": "counter"}`,
 			want: want{
 				statusCode: http.StatusOK,
-				value:      Metrics{ID: "c1", MType: "counter", Delta: newInt64(10)},
+				value:      protocol.Metrics{ID: "c1", MType: "counter", Delta: newInt64(10)},
 			},
 		},
 		{
@@ -352,7 +353,7 @@ func TestValueJSON(t *testing.T) {
 			request: `{"id": "g1", "type": "gauge"}`,
 			want: want{
 				statusCode: http.StatusOK,
-				value:      Metrics{ID: "g1", MType: "gauge", Value: newFloat64(10.1)},
+				value:      protocol.Metrics{ID: "g1", MType: "gauge", Value: newFloat64(10.1)},
 			},
 		},
 		{
@@ -360,7 +361,7 @@ func TestValueJSON(t *testing.T) {
 			request: `{"id": "g100", "type": "gauge"}`,
 			want: want{
 				statusCode: http.StatusNotFound,
-				value:      Metrics{},
+				value:      protocol.Metrics{},
 			},
 		},
 		{
@@ -368,7 +369,7 @@ func TestValueJSON(t *testing.T) {
 			request: `{"id": "g1", "type": "counter"}`,
 			want: want{
 				statusCode: http.StatusNotFound,
-				value:      Metrics{},
+				value:      protocol.Metrics{},
 			},
 		},
 		{
@@ -376,7 +377,7 @@ func TestValueJSON(t *testing.T) {
 			request: `{"id": "g1", "type": "summary"}`,
 			want: want{
 				statusCode: http.StatusBadRequest,
-				value:      Metrics{},
+				value:      protocol.Metrics{},
 			},
 		},
 	}
@@ -401,7 +402,7 @@ func TestValueJSON(t *testing.T) {
 			if result.StatusCode != http.StatusOK {
 				return
 			}
-			m := Metrics{}
+			m := protocol.Metrics{}
 			err := json.NewDecoder(result.Body).Decode(&m)
 			if !assert.NoError(t, err, "error while decoding") {
 				return
