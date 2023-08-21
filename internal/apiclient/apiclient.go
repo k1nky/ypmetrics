@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/k1nky/ypmetrics/internal/protocol"
 )
 
 var (
@@ -20,13 +21,6 @@ type Client struct {
 	// URL сервера сбора метрик в формате <протокол>://<хост>[:порт]
 	EndpointURL string
 	httpclient  *resty.Client
-}
-
-type pushJSONRequest struct {
-	ID    string   `json:"id"`              // имя метрики
-	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
-	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
-	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 }
 
 // New возвращает нового клиента для сервера сбора метрик
@@ -71,7 +65,7 @@ func (c *Client) PushCounter(name string, value int64) (err error) {
 	}
 	if resp, err = c.httpclient.R().
 		SetHeader("content-type", "application/json").
-		SetBody(pushJSONRequest{
+		SetBody(protocol.Metrics{
 			ID:    name,
 			MType: "counter",
 			Delta: &value,
@@ -96,7 +90,7 @@ func (c *Client) PushGauge(name string, value float64) (err error) {
 	}
 	if resp, err = c.httpclient.R().
 		SetHeader("content-type", "application/json").
-		SetBody(pushJSONRequest{
+		SetBody(protocol.Metrics{
 			ID:    name,
 			MType: "gauge",
 			Value: &value,

@@ -1,12 +1,21 @@
 SHELL:=/bin/bash
 STATICCHECK=$(shell which statictest)
 
+.DEFAULT_GOAL := build
+
 test:
 	go test -cover ./...
 
 vet:
 	go vet ./...
 	go vet -vettool=$(STATICCHECK) ./...
+
+generate:
+	go generate ./...
+
+gvt: generate vet test
+
+build: gvt buildagent buildserver
 
 buildserver:
 	go build  -C cmd/server .
