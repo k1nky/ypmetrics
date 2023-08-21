@@ -54,6 +54,7 @@ func (c *Client) PushMetric(typ, name, value string) (err error) {
 	return
 }
 
+// PushCounter отправляет счетчик на сервер в формате JSON
 func (c *Client) PushCounter(name string, value int64) (err error) {
 	var (
 		requestURL string
@@ -79,6 +80,7 @@ func (c *Client) PushCounter(name string, value int64) (err error) {
 	return nil
 }
 
+// PushGauge отправляет измеритель на сервер в формате JSON
 func (c *Client) PushGauge(name string, value float64) (err error) {
 	var (
 		requestURL string

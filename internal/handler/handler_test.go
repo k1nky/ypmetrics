@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,10 +12,16 @@ import (
 	"github.com/k1nky/ypmetrics/internal/logger"
 	"github.com/k1nky/ypmetrics/internal/metric"
 	"github.com/k1nky/ypmetrics/internal/metricset/server"
-	"github.com/k1nky/ypmetrics/internal/protocol"
 	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/stretchr/testify/assert"
 )
+
+func newTestServer() *server.Server {
+	ms := server.New(storage.NewMemStorage(), logger.New())
+	ms.UpdateCounter("c1", 10)
+	ms.UpdateGauge("g1", 10.10)
+	return ms
+}
 
 func TestTypeIsValid(t *testing.T) {
 	tests := []struct {
@@ -158,7 +163,7 @@ func TestUpdate(t *testing.T) {
 func TestUpdateJSON(t *testing.T) {
 	type want struct {
 		statusCode int
-		m          protocol.Metrics
+		body       string
 	}
 	tests := []struct {
 		name    string
@@ -166,19 +171,35 @@ func TestUpdateJSON(t *testing.T) {
 		want    want
 	}{
 		{
-			name:    "Update counter",
+			name:    "New counter",
 			request: `{"id": "c0", "type": "counter", "delta": 10}`,
 			want: want{
 				statusCode: http.StatusOK,
-				m:          protocol.Metrics{ID: "c0", MType: "counter", Delta: newInt64(10)},
+				body:       `{"id": "c0", "type": "counter", "delta": 10}`,
+			},
+		},
+		{
+			name:    "Update counter",
+			request: `{"id": "c1", "type": "counter", "delta": 1}`,
+			want: want{
+				statusCode: http.StatusOK,
+				body:       `{"id": "c1", "type": "counter", "delta": 11}`,
+			},
+		},
+		{
+			name:    "New gauge",
+			request: `{"id": "g0", "type": "gauge", "value": 0.1}`,
+			want: want{
+				statusCode: http.StatusOK,
+				body:       `{"id": "g0", "type": "gauge", "value": 0.1}`,
 			},
 		},
 		{
 			name:    "Update gauge",
-			request: `{"id": "g0", "type": "gauge", "value": 0.1}`,
+			request: `{"id": "g1", "type": "gauge", "value": 0.1}`,
 			want: want{
 				statusCode: http.StatusOK,
-				m:          protocol.Metrics{ID: "g0", MType: "gauge", Value: newFloat64(0.1)},
+				body:       `{"id": "g1", "type": "gauge", "value": 0.1}`,
 			},
 		},
 		{
@@ -225,7 +246,7 @@ func TestUpdateJSON(t *testing.T) {
 		},
 	}
 
-	ms := server.New(storage.NewMemStorage(), logger.New())
+	ms := newTestServer()
 	h := New(ms)
 	gin.SetMode(gin.TestMode)
 
@@ -243,12 +264,11 @@ func TestUpdateJSON(t *testing.T) {
 			if result.StatusCode != http.StatusOK {
 				return
 			}
-			m := protocol.Metrics{}
-			err := json.NewDecoder(result.Body).Decode(&m)
-			if !assert.NoError(t, err, "error while decoding") {
+			resp := bytes.Buffer{}
+			if _, err := resp.ReadFrom(result.Body); !assert.NoError(t, err, "error while decoding") {
 				return
 			}
-			assert.Equal(t, tt.want.m, m)
+			assert.JSONEq(t, tt.want.body, resp.String())
 		})
 	}
 }
@@ -333,7 +353,7 @@ func TestValue(t *testing.T) {
 func TestValueJSON(t *testing.T) {
 	type want struct {
 		statusCode int
-		value      protocol.Metrics
+		value      string
 	}
 	tests := []struct {
 		name    string
@@ -345,7 +365,7 @@ func TestValueJSON(t *testing.T) {
 			request: `{"id": "c1", "type": "counter"}`,
 			want: want{
 				statusCode: http.StatusOK,
-				value:      protocol.Metrics{ID: "c1", MType: "counter", Delta: newInt64(10)},
+				value:      `{"id": "c1", "type": "counter", "delta": 10}`,
 			},
 		},
 		{
@@ -353,7 +373,7 @@ func TestValueJSON(t *testing.T) {
 			request: `{"id": "g1", "type": "gauge"}`,
 			want: want{
 				statusCode: http.StatusOK,
-				value:      protocol.Metrics{ID: "g1", MType: "gauge", Value: newFloat64(10.1)},
+				value:      `{"id": "g1", "type": "gauge", "value": 10.1}`,
 			},
 		},
 		{
@@ -361,7 +381,6 @@ func TestValueJSON(t *testing.T) {
 			request: `{"id": "g100", "type": "gauge"}`,
 			want: want{
 				statusCode: http.StatusNotFound,
-				value:      protocol.Metrics{},
 			},
 		},
 		{
@@ -369,7 +388,6 @@ func TestValueJSON(t *testing.T) {
 			request: `{"id": "g1", "type": "counter"}`,
 			want: want{
 				statusCode: http.StatusNotFound,
-				value:      protocol.Metrics{},
 			},
 		},
 		{
@@ -377,7 +395,6 @@ func TestValueJSON(t *testing.T) {
 			request: `{"id": "g1", "type": "summary"}`,
 			want: want{
 				statusCode: http.StatusBadRequest,
-				value:      protocol.Metrics{},
 			},
 		},
 	}
@@ -394,6 +411,7 @@ func TestValueJSON(t *testing.T) {
 			c.Request = httptest.NewRequest(http.MethodPost, "/value/", buf)
 			r.POST("/value/", h.ValueJSON())
 			r.ServeHTTP(w, c.Request)
+
 			result := w.Result()
 			defer result.Body.Close()
 			if !assert.Equal(t, tt.want.statusCode, result.StatusCode) {
@@ -402,18 +420,17 @@ func TestValueJSON(t *testing.T) {
 			if result.StatusCode != http.StatusOK {
 				return
 			}
-			m := protocol.Metrics{}
-			err := json.NewDecoder(result.Body).Decode(&m)
-			if !assert.NoError(t, err, "error while decoding") {
+			assert.Contains(t, result.Header.Get("content-type"), "application/json")
+			resp := bytes.Buffer{}
+			if _, err := resp.ReadFrom(result.Body); !assert.NoError(t, err, "error while decoding") {
 				return
 			}
-			assert.Equal(t, tt.want.value, m)
+			assert.JSONEq(t, tt.want.value, resp.String())
 		})
 	}
 }
 
 func TestAllMetrics(t *testing.T) {
-	ms := newTestServer()
 	type want struct {
 		statusCode int
 		value      string
@@ -429,7 +446,7 @@ func TestAllMetrics(t *testing.T) {
 				statusCode: http.StatusOK,
 				value:      "c1 = 10\ng1 = 10.1\n",
 			},
-			ms: ms,
+			ms: newTestServer(),
 		},
 		{
 			name: "Without values",
@@ -441,10 +458,10 @@ func TestAllMetrics(t *testing.T) {
 		},
 	}
 
+	gin.SetMode(gin.TestMode)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			gin.SetMode(gin.TestMode)
 			c, r := gin.CreateTestContext(w)
 			h := New(tt.ms)
 			r.GET("/", h.AllMetrics())
@@ -463,19 +480,4 @@ func TestAllMetrics(t *testing.T) {
 			assert.ElementsMatch(t, strings.Split(tt.want.value, "\n"), strings.Split(string(body), "\n"))
 		})
 	}
-}
-
-func newTestServer() *server.Server {
-	ms := server.New(storage.NewMemStorage(), logger.New())
-	ms.UpdateCounter("c1", 10)
-	ms.UpdateGauge("g1", 10.10)
-	return ms
-}
-
-func newFloat64(v float64) *float64 {
-	return &v
-}
-
-func newInt64(v int64) *int64 {
-	return &v
 }
