@@ -1,9 +1,8 @@
-package handler
+package middleware
 
 import (
 	"bytes"
 	"io"
-	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -43,15 +42,5 @@ func LoggerWithBody(l requestLogger) gin.HandlerFunc {
 			size = 0
 		}
 		l.Info("%s %s status %d size %d duration %s %s", ctx.Request.Method, ctx.Request.RequestURI, ctx.Writer.Status(), size, time.Since(start), body)
-	}
-}
-
-// RequireContentType это middleware, который определяет требование для значения заголовка ContentType
-func RequireContentType(contentType string) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		if ctx.ContentType() != contentType {
-			ctx.AbortWithStatus(http.StatusBadRequest)
-		}
-		ctx.Next()
 	}
 }

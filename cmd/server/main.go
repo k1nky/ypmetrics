@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/handler"
+	"github.com/k1nky/ypmetrics/internal/handler/middleware"
 	"github.com/k1nky/ypmetrics/internal/logger"
 	"github.com/k1nky/ypmetrics/internal/metricset/server"
 	"github.com/k1nky/ypmetrics/internal/storage"
@@ -38,16 +39,16 @@ func newRouter(cfg config.ServerConfig, l *logger.Logger) *gin.Engine {
 	h := handler.New(metrics)
 
 	router := gin.New()
-	router.Use(handler.Logger(l))
+	router.Use(middleware.Logger(l), middleware.Gzip([]string{"application/json", "text/html"}))
 
 	router.GET("/", h.AllMetrics())
 
 	valueRoutes := router.Group("/value")
-	valueRoutes.POST("/", handler.RequireContentType("application/json"), h.ValueJSON())
+	valueRoutes.POST("/", middleware.RequireContentType("application/json"), h.ValueJSON())
 	valueRoutes.GET("/:type/:name", h.Value())
 
 	updateRoutes := router.Group("/update")
-	updateRoutes.POST("/", handler.RequireContentType("application/json"), h.UpdateJSON())
+	updateRoutes.POST("/", middleware.RequireContentType("application/json"), h.UpdateJSON())
 	updateRoutes.POST("/:type/", func(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 	})

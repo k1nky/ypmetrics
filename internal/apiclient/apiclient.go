@@ -44,7 +44,7 @@ func (c *Client) PushMetric(typ, name, value string) (err error) {
 	if requestURL, err = url.JoinPath(c.EndpointURL, "update", typ, name, value); err != nil {
 		return err
 	}
-	if resp, err = c.httpclient.R().Post(requestURL); err != nil {
+	if resp, err = c.httpclient.R().SetHeader("Content-Type", "text/plain").Post(requestURL); err != nil {
 		return err
 	}
 	if resp.StatusCode() != http.StatusOK {
