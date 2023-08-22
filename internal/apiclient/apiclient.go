@@ -35,6 +35,11 @@ func New(url string) *Client {
 	return c
 }
 
+// newRequest это shortcut для создания нового запроса
+func (c *Client) newRequest() *resty.Request {
+	return c.httpclient.R().SetHeader("accept-encoding", "gzip")
+}
+
 // PushMetric отправляет метрику на сервер
 func (c *Client) PushMetric(typ, name, value string) (err error) {
 	var (
@@ -44,7 +49,7 @@ func (c *Client) PushMetric(typ, name, value string) (err error) {
 	if requestURL, err = url.JoinPath(c.EndpointURL, "update", typ, name, value); err != nil {
 		return err
 	}
-	if resp, err = c.httpclient.R().SetHeader("Content-Type", "text/plain").Post(requestURL); err != nil {
+	if resp, err = c.newRequest().SetHeader("Content-Type", "text/plain").Post(requestURL); err != nil {
 		return err
 	}
 	if resp.StatusCode() != http.StatusOK {
@@ -64,7 +69,7 @@ func (c *Client) PushCounter(name string, value int64) (err error) {
 	if requestURL, err = url.JoinPath(c.EndpointURL, "update/"); err != nil {
 		return
 	}
-	if resp, err = c.httpclient.R().
+	if resp, err = c.newRequest().
 		SetHeader("content-type", "application/json").
 		SetBody(protocol.Metrics{
 			ID:    name,
@@ -90,7 +95,7 @@ func (c *Client) PushGauge(name string, value float64) (err error) {
 	if requestURL, err = url.JoinPath(c.EndpointURL, "update/"); err != nil {
 		return
 	}
-	if resp, err = c.httpclient.R().
+	if resp, err = c.newRequest().
 		SetHeader("content-type", "application/json").
 		SetBody(protocol.Metrics{
 			ID:    name,

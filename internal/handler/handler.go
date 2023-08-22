@@ -43,6 +43,7 @@ func (h Handler) AllMetrics() gin.HandlerFunc {
 		for _, m := range metrics.Gauges {
 			result.WriteString(fmt.Sprintf("%s = %s\n", m.Name, m))
 		}
+		ctx.Writer.Header().Add("content-type", "text/html")
 		ctx.String(http.StatusOK, result.String())
 	}
 }

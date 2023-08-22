@@ -29,15 +29,16 @@ func (gz *gzipWriter) WriteHeader(code int) {
 	gz.ResponseWriter.WriteHeader(code)
 }
 
-func (gzw *gzipWriter) shouldCompress(request *http.Request, response http.ResponseWriter) bool {
+// shouldCompress определяет требуется ли сжатие тела ответа.
+func (gz *gzipWriter) shouldCompress(request *http.Request, response http.ResponseWriter) bool {
 	if !strings.Contains(request.Header.Get("accept-encoding"), "gzip") {
 		return false
 	}
 	contentType := response.Header().Get("content-type")
-	if len(gzw.contentTypes) == 0 {
+	if len(gz.contentTypes) == 0 {
 		return true
 	}
-	for _, ct := range gzw.contentTypes {
+	for _, ct := range gz.contentTypes {
 		if strings.Contains(contentType, ct) {
 			return true
 		}
@@ -45,9 +46,23 @@ func (gzw *gzipWriter) shouldCompress(request *http.Request, response http.Respo
 	return false
 }
 
+// shouldUncompress определяет требуется ли разжатие тела запроса
+func shouldUncompress(r *http.Request) bool {
+	return strings.Contains(r.Header.Get("content-encoding"), "gzip")
+}
+
+// Gzip middleware позволяет разжимать тело запроса и сжимать тело ответа.
+// Тело запроса будет разжато, если указан заголовок content-encoding: gzip.
+// Сжатие тела ответа будет выполняться при истиности следующих условий:
+//
+//	клиент поддерживает сжатие (заголовок accept-encoding);
+//	тип контента ответа разрешен для сжатия (contentTypes).
+//
+// Если список разрешенных типов пустой, то сжимать можно тело с любым типом.
 func Gzip(contentTypes []string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		if shouldUncompress(ctx.Request) {
+			// требуется разжатие тела запроса, поэтому подменяем тело запроса
 			gz, err := gzip.NewReader(ctx.Request.Body)
 			if err != nil {
 				ctx.AbortWithStatus(http.StatusInternalServerError)
@@ -63,6 +78,9 @@ func Gzip(contentTypes []string) gin.HandlerFunc {
 			contentTypes:   contentTypes,
 		}
 		ctx.Writer = gzwriter
+		// для всех последующих обработчиков тело ответа будем писать в поле `body` gzwriter,
+		// т.к. пока не отработают все обработчики, нельзя достоверно определить потребуется ли
+		// сжатие ответа (нужно проверить заголовок Content-Type)
 		ctx.Next()
 		if gzwriter.shouldCompress(ctx.Request, gzwriter) {
 			gzwriter.Header().Add("Content-Encoding", "gzip")
@@ -72,13 +90,11 @@ func Gzip(contentTypes []string) gin.HandlerFunc {
 				return
 			}
 			defer gz.Close()
+			// сжатие требуется, в ответ пишем сжатые данные
 			gz.Write(gzwriter.body.Bytes())
 		} else {
+			// сжатие не требуется, в ответ пишем данные как есть
 			gzwriter.ResponseWriter.Write(gzwriter.body.Bytes())
 		}
 	}
-}
-
-func shouldUncompress(r *http.Request) bool {
-	return strings.Contains(r.Header.Get("Content-Encoding"), "gzip")
 }
