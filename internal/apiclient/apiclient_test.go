@@ -142,3 +142,31 @@ func TestClient_PushGauge(t *testing.T) {
 		})
 	}
 }
+
+func TestNew(t *testing.T) {
+	type args struct {
+		url string
+	}
+	tests := []struct {
+		name string
+		args args
+		want *Client
+	}{
+		{
+			name: "URL with schema",
+			args: args{"http://localhost:8080"},
+			want: &Client{EndpointURL: "http://localhost:8080"},
+		},
+		{
+			name: "URL without schema",
+			args: args{"localhost:8080"},
+			want: &Client{EndpointURL: "http://localhost:8080"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := New(tt.args.url)
+			assert.Equal(t, tt.want.EndpointURL, got.EndpointURL)
+		})
+	}
+}
