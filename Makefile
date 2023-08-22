@@ -15,6 +15,10 @@ generate:
 
 gvt: generate vet test
 
+cover:
+	go test -cover ./... -coverprofile cover.out
+	go tool cover -html cover.out -o cover.html
+
 build: gvt buildagent buildserver
 
 buildserver:
