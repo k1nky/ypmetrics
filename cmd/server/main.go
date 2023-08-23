@@ -9,7 +9,7 @@ import (
 	"github.com/k1nky/ypmetrics/internal/handler"
 	"github.com/k1nky/ypmetrics/internal/handler/middleware"
 	"github.com/k1nky/ypmetrics/internal/logger"
-	"github.com/k1nky/ypmetrics/internal/metricset/server"
+	"github.com/k1nky/ypmetrics/internal/metricset/keeper"
 	"github.com/k1nky/ypmetrics/internal/storage"
 )
 
@@ -20,8 +20,8 @@ func init() {
 func main() {
 	logger := logger.New()
 
-	cfg := config.ServerConfig{}
-	if err := config.ParseServerConfig(&cfg); err != nil {
+	cfg := config.KeeperConfig{}
+	if err := config.ParseKeeperConfig(&cfg); err != nil {
 		logger.Error("config: %s", err)
 		os.Exit(1)
 	}
@@ -34,20 +34,20 @@ func main() {
 	}
 }
 
-func newRouter(cfg config.ServerConfig, l *logger.Logger) *gin.Engine {
-	stor, err := storage.NewDurableMemStorage(cfg.FileStoragePath, cfg.StorageInterval(), l)
+func newRouter(cfg config.KeeperConfig, log *logger.Logger) *gin.Engine {
+	stor, err := storage.NewDurableMemStorage(cfg.FileStoragePath, cfg.StorageInterval(), log)
 	if err != nil {
-		l.Error("initialize storage: %v", err)
+		log.Error("initialize storage: %v", err)
 		return nil
 	}
 	if cfg.Restore {
 		stor.Restore()
 	}
-	metrics := server.New(stor, l)
+	metrics := keeper.New(stor, log)
 	h := handler.New(metrics)
 
 	router := gin.New()
-	router.Use(middleware.Logger(l), middleware.Gzip([]string{"application/json", "text/html"}))
+	router.Use(middleware.Logger(log), middleware.Gzip([]string{"application/json", "text/html"}))
 
 	router.GET("/", h.AllMetrics())
 

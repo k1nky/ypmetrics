@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/k1nky/ypmetrics/internal/metric"
-	"github.com/k1nky/ypmetrics/internal/metricset"
 )
 
 type DurableMemStorage struct {
@@ -49,7 +48,7 @@ func (dms *DurableMemStorage) background() {
 }
 
 func (dms *DurableMemStorage) Flush() {
-	snap := metricset.Snapshot{}
+	snap := metric.Metrics{}
 	dms.Snapshot(&snap)
 
 	dms.dataLock.Lock()
@@ -60,7 +59,7 @@ func (dms *DurableMemStorage) Flush() {
 }
 
 func (dms *DurableMemStorage) Restore() error {
-	snap := metricset.Snapshot{}
+	snap := metric.Metrics{}
 	if err := gob.NewDecoder(dms.data).Decode(&snap); err != nil {
 		return err
 	}

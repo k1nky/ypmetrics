@@ -11,13 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/k1nky/ypmetrics/internal/logger"
 	"github.com/k1nky/ypmetrics/internal/metric"
-	"github.com/k1nky/ypmetrics/internal/metricset/server"
+	"github.com/k1nky/ypmetrics/internal/metricset/keeper"
 	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/stretchr/testify/assert"
 )
 
-func newTestServer() *server.Server {
-	ms := server.New(storage.NewMemStorage(), logger.New())
+func newTestMetrics() *keeper.Keeper {
+	ms := keeper.New(storage.NewMemStorage(), logger.New())
 	ms.UpdateCounter("c1", 10)
 	ms.UpdateGauge("g1", 10.10)
 	return ms
@@ -134,7 +134,7 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 	gin.SetMode(gin.TestMode)
-	ms := newTestServer()
+	ms := newTestMetrics()
 	h := New(ms)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -246,7 +246,7 @@ func TestUpdateJSON(t *testing.T) {
 		},
 	}
 
-	ms := newTestServer()
+	ms := newTestMetrics()
 	h := New(ms)
 	gin.SetMode(gin.TestMode)
 
@@ -326,7 +326,7 @@ func TestValue(t *testing.T) {
 	}
 
 	gin.SetMode(gin.TestMode)
-	ms := newTestServer()
+	ms := newTestMetrics()
 	h := New(ms)
 
 	for _, tt := range tests {
@@ -400,7 +400,7 @@ func TestValueJSON(t *testing.T) {
 	}
 
 	gin.SetMode(gin.TestMode)
-	ms := newTestServer()
+	ms := newTestMetrics()
 	h := New(ms)
 
 	for _, tt := range tests {
@@ -437,7 +437,7 @@ func TestAllMetrics(t *testing.T) {
 	}
 	tests := []struct {
 		name string
-		ms   *server.Server
+		ms   *keeper.Keeper
 		want want
 	}{
 		{
@@ -446,7 +446,7 @@ func TestAllMetrics(t *testing.T) {
 				statusCode: http.StatusOK,
 				value:      "c1 = 10\ng1 = 10.1\n",
 			},
-			ms: newTestServer(),
+			ms: newTestMetrics(),
 		},
 		{
 			name: "Without values",
@@ -454,7 +454,7 @@ func TestAllMetrics(t *testing.T) {
 				statusCode: http.StatusOK,
 				value:      "",
 			},
-			ms: server.New(storage.NewMemStorage(), logger.New()),
+			ms: keeper.New(storage.NewMemStorage(), logger.New()),
 		},
 	}
 

@@ -4,15 +4,14 @@ import (
 	"runtime"
 
 	"github.com/k1nky/ypmetrics/internal/metric"
-	"github.com/k1nky/ypmetrics/internal/metricset"
 )
 
 type Runtime struct{}
 
-func (rc Runtime) Collect() (metricset.Snapshot, error) {
+func (rc Runtime) Collect() (metric.Metrics, error) {
 	memStat := &runtime.MemStats{}
 	runtime.ReadMemStats(memStat)
-	return metricset.Snapshot{
+	return metric.Metrics{
 		Gauges: []*metric.Gauge{
 			metric.NewGauge("Alloc", float64(memStat.Alloc)),
 			metric.NewGauge("BuckHashSys", float64(memStat.BuckHashSys)),

@@ -1,4 +1,4 @@
-package agent
+package poller
 
 import (
 	"sync"
@@ -10,18 +10,18 @@ import (
 )
 
 type Collector interface {
-	Collect() (metricset.Snapshot, error)
+	Collect() (metric.Metrics, error)
 }
 
-type agentStorage interface {
+type metricStorage interface {
 	GetCounter(name string) *metric.Counter
 	GetGauge(name string) *metric.Gauge
 	SetCounter(*metric.Counter)
 	SetGauge(*metric.Gauge)
-	Snapshot(*metricset.Snapshot)
+	Snapshot(*metric.Metrics)
 }
 
-type agentLogger interface {
+type logger interface {
 	Debug(template string, args ...interface{})
 	Info(template string, args ...interface{})
 	Error(template string, args ...interface{})
@@ -32,38 +32,37 @@ type sender interface {
 	PushGauge(name string, value float64) (err error)
 }
 
-// Agent представляет собой набор метрик с расширенным функционалом.
-// Расширенный функционал позволяет наполнять набор метриками, полученными из сборщиков (Collector),
-// и периодически отправлять обновления метрик.
-type Agent struct {
+// Poller представляет собой набор метрик с расширенным функционалом. Он опрашивает сборщиков (Collector)
+// и периодически отправляет обновления метрик в единый набор метрик.
+type Poller struct {
 	metricset.Set
 	collectors []Collector
-	logger     agentLogger
+	logger     logger
 	client     sender
-	Config     config.AgentConfig
+	Config     config.PollerConfig
 }
 
-// New возвращает нового агента сбора метрик. По умолчанию в качестве хранилища используется MemStorage.
-func New(cfg config.AgentConfig, storage agentStorage, l agentLogger, client sender) *Agent {
+// New возвращает нового Poller для сбора метрик. По умолчанию в качестве хранилища используется MemStorage.
+func New(cfg config.PollerConfig, storage metricStorage, log logger, client sender) *Poller {
 	metricSet := metricset.NewSet(storage)
 	if metricSet == nil {
 		return nil
 	}
-	return &Agent{
+	return &Poller{
 		client: client,
-		logger: l,
+		logger: log,
 		Set:    *metricSet,
 		Config: cfg,
 	}
 }
 
 // AddCollector добавляет совместимый сборщик для получения метрик.
-func (a *Agent) AddCollector(collectors ...Collector) {
+func (a *Poller) AddCollector(collectors ...Collector) {
 	a.collectors = append(a.collectors, collectors...)
 }
 
-// Run запускает агента
-func (a Agent) Run() {
+// Run запускает Poller
+func (a Poller) Run() {
 
 	var wg sync.WaitGroup
 
@@ -106,7 +105,7 @@ func (a Agent) Run() {
 	wg.Wait()
 }
 
-func (a Agent) report() error {
+func (a Poller) report() error {
 	snap := a.GetMetrics()
 	for _, m := range snap.Counters {
 		if err := a.client.PushCounter(m.Name, m.Value); err != nil {

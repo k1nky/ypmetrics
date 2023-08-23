@@ -21,6 +21,12 @@ type Gauge struct {
 	Value float64
 }
 
+// Metrics списки метрики по типу
+type Metrics struct {
+	Counters []*Counter
+	Gauges   []*Gauge
+}
+
 // NewCounter возвращает новый счетчик
 func NewCounter(name string, initValue int64) *Counter {
 	return &Counter{

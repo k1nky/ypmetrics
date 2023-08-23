@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/k1nky/ypmetrics/internal/metric"
-	"github.com/k1nky/ypmetrics/internal/metricset"
 )
 
 // MemStorage хранилище метрик в памяти
@@ -73,7 +72,7 @@ func (ms *MemStorage) SetGauge(m *metric.Gauge) {
 }
 
 // Snapshot создает снимок метрик из хранилища
-func (ms *MemStorage) Snapshot(snap *metricset.Snapshot) {
+func (ms *MemStorage) Snapshot(snap *metric.Metrics) {
 
 	if snap == nil {
 		return

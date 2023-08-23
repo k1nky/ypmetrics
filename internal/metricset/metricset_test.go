@@ -24,7 +24,7 @@ func (ms *mockStorage) SetCounter(c *metric.Counter) {
 func (ms *mockStorage) SetGauge(g *metric.Gauge) {
 	ms.gauge = g
 }
-func (ms *mockStorage) Snapshot(snap *Snapshot) {
+func (ms *mockStorage) Snapshot(snap *metric.Metrics) {
 	snap.Counters = []*metric.Counter{metric.NewCounter("c0", 123), metric.NewCounter("c1", 1)}
 }
 

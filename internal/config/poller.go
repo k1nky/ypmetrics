@@ -8,8 +8,8 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-// AgentConfig конфигурация агента
-type AgentConfig struct {
+// PollerConfig конфигурация агента
+type PollerConfig struct {
 	// Адрес сервера, к которому будет подключаться агент
 	Address NetAddress `env:"ADDRESS"`
 	// Интервал отправки метрик на сервер (в секундах)
@@ -23,15 +23,15 @@ const (
 	DefReportIntervalInSec = 10
 )
 
-func (c AgentConfig) ReportInterval() time.Duration {
+func (c PollerConfig) ReportInterval() time.Duration {
 	return time.Duration(c.ReportIntervalInSec) * time.Second
 }
 
-func (c AgentConfig) PollInterval() time.Duration {
+func (c PollerConfig) PollInterval() time.Duration {
 	return time.Duration(c.PollIntervalInSec) * time.Second
 }
 
-func parseAgentConfigFromCmd(c *AgentConfig) error {
+func parsePollerConfigFromCmd(c *PollerConfig) error {
 	cmd := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	address := NetAddress("localhost:8080")
 	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
@@ -41,7 +41,7 @@ func parseAgentConfigFromCmd(c *AgentConfig) error {
 	if err := cmd.Parse(os.Args[1:]); err != nil {
 		return err
 	}
-	*c = AgentConfig{
+	*c = PollerConfig{
 		Address:             address,
 		ReportIntervalInSec: *reportInterval,
 		PollIntervalInSec:   *pollInterval,
@@ -49,7 +49,7 @@ func parseAgentConfigFromCmd(c *AgentConfig) error {
 	return nil
 }
 
-func parseAgentConfigFromEnv(c *AgentConfig) error {
+func parsePollerConfigFromEnv(c *PollerConfig) error {
 	if err := env.Parse(c); err != nil {
 		return err
 	}
@@ -61,13 +61,13 @@ func parseAgentConfigFromEnv(c *AgentConfig) error {
 	return nil
 }
 
-// ParseAgentConfig возвращает конфиг приложения. Опции разбираются из аргументов командной строки
+// ParsePollerConfig возвращает конфиг Poller'a. Опции разбираются из аргументов командной строки
 // и переменных окружения. Переменные окружения имеют приоритет выше чем аргументы командной строки.
-func ParseAgentConfig(c *AgentConfig) error {
-	if err := parseAgentConfigFromCmd(c); err != nil {
+func ParsePollerConfig(c *PollerConfig) error {
+	if err := parsePollerConfigFromCmd(c); err != nil {
 		return err
 	}
-	if err := parseAgentConfigFromEnv(c); err != nil {
+	if err := parsePollerConfigFromEnv(c); err != nil {
 		return err
 	}
 	return nil

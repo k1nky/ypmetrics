@@ -7,19 +7,13 @@ type metricSetStorage interface {
 	GetGauge(name string) *metric.Gauge
 	SetCounter(*metric.Counter)
 	SetGauge(*metric.Gauge)
-	Snapshot(*Snapshot)
+	Snapshot(*metric.Metrics)
 }
 
 // Set представляет собой обобщенный набор метрик, основной вункционал которого
 // получение и обновление метрик.
 type Set struct {
 	storage metricSetStorage
-}
-
-// Snapshot срез текущих метрик в наборе
-type Snapshot struct {
-	Counters []*metric.Counter
-	Gauges   []*metric.Gauge
 }
 
 // NewSet возвращает новый набор метрик для хранения, которых будет использоваться storage.
@@ -68,8 +62,8 @@ func (s Set) GetGauge(name string) *metric.Gauge {
 }
 
 // GetMetrics возвращает список метрик, имеющихся в хранилище сервера
-func (s Set) GetMetrics() Snapshot {
-	snap := &Snapshot{}
+func (s Set) GetMetrics() metric.Metrics {
+	snap := &metric.Metrics{}
 	s.storage.Snapshot(snap)
 	return *snap
 }

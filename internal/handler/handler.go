@@ -9,12 +9,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/k1nky/ypmetrics/internal/metric"
-	"github.com/k1nky/ypmetrics/internal/metricset"
 	"github.com/k1nky/ypmetrics/internal/protocol"
 )
 
 type metricSet interface {
-	GetMetrics() metricset.Snapshot
+	GetMetrics() metric.Metrics
 	GetCounter(name string) *metric.Counter
 	GetGauge(name string) *metric.Gauge
 	UpdateCounter(name string, value int64)

@@ -5,13 +5,12 @@ import (
 	"time"
 
 	"github.com/k1nky/ypmetrics/internal/metric"
-	"github.com/k1nky/ypmetrics/internal/metricset"
 )
 
 type Random struct{}
 
-func (rc Random) Collect() (metricset.Snapshot, error) {
-	return metricset.Snapshot{
+func (rc Random) Collect() (metric.Metrics, error) {
+	return metric.Metrics{
 		Gauges: []*metric.Gauge{metric.NewGauge("RandomValue", randomFloat())},
 	}, nil
 }

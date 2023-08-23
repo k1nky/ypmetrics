@@ -8,8 +8,8 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-// ServerConfig конфигурация сервера
-type ServerConfig struct {
+// KeeperConfig конфигурация сервера
+type KeeperConfig struct {
 	// Адрес и порт, который будет слушать сервер
 	Address            NetAddress `env:"ADDRESS"`
 	StoreIntervalInSec uint       `env:"STORE_INTERVAL"`
@@ -17,11 +17,11 @@ type ServerConfig struct {
 	Restore            bool       `env:"RESTORE"`
 }
 
-func (cfg ServerConfig) StorageInterval() time.Duration {
+func (cfg KeeperConfig) StorageInterval() time.Duration {
 	return time.Duration(cfg.StoreIntervalInSec) * time.Second
 }
 
-func parseServerConfigFromCmd(c *ServerConfig) error {
+func parseKeeperConfigFromCmd(c *KeeperConfig) error {
 	cmd := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 
 	address := NetAddress("localhost:8080")
@@ -32,14 +32,14 @@ func parseServerConfigFromCmd(c *ServerConfig) error {
 	if err := cmd.Parse(os.Args[1:]); err != nil {
 		return err
 	}
-	*c = ServerConfig{
+	*c = KeeperConfig{
 		Address:            address,
 		StoreIntervalInSec: *storeInterval,
 	}
 	return nil
 }
 
-func parseServerConfigFromEnv(c *ServerConfig) error {
+func parseKeeperConfigFromEnv(c *KeeperConfig) error {
 	if err := env.Parse(c); err != nil {
 		return err
 	}
@@ -51,15 +51,15 @@ func parseServerConfigFromEnv(c *ServerConfig) error {
 	return nil
 }
 
-// ParseServerConfig разбирает настройки сервера из аргументов командной строки
+// ParseKeeperConfig разбирает настройки Keeper'a из аргументов командной строки
 // и переменных окружения. Переменные окружения имеют более высокий
 // приоритет, чем аргументы.
-func ParseServerConfig(c *ServerConfig) error {
+func ParseKeeperConfig(c *KeeperConfig) error {
 
-	if err := parseServerConfigFromCmd(c); err != nil {
+	if err := parseKeeperConfigFromCmd(c); err != nil {
 		return err
 	}
-	if err := parseServerConfigFromEnv(c); err != nil {
+	if err := parseKeeperConfigFromEnv(c); err != nil {
 		return err
 	}
 	return nil
