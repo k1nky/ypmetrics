@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"time"
 
 	"github.com/caarlos0/env/v6"
 	flag "github.com/spf13/pflag"
@@ -10,7 +11,14 @@ import (
 // ServerConfig конфигурация сервера
 type ServerConfig struct {
 	// Адрес и порт, который будет слушать сервер
-	Address NetAddress `env:"ADDRESS"`
+	Address            NetAddress `env:"ADDRESS"`
+	StoreIntervalInSec uint       `env:"STORE_INTERVAL"`
+	FileStoragePath    string     `env:"FILE_STORAGE_PATH"`
+	Restore            bool       `env:"RESTORE"`
+}
+
+func (cfg ServerConfig) StorageInterval() time.Duration {
+	return time.Duration(cfg.StoreIntervalInSec) * time.Second
 }
 
 func parseServerConfigFromCmd(c *ServerConfig) error {
@@ -19,11 +27,14 @@ func parseServerConfigFromCmd(c *ServerConfig) error {
 	address := NetAddress("localhost:8080")
 	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
 
+	storeInterval := cmd.UintP("storeInterval", "i", 300, "")
+
 	if err := cmd.Parse(os.Args[1:]); err != nil {
 		return err
 	}
 	*c = ServerConfig{
-		Address: address,
+		Address:            address,
+		StoreIntervalInSec: *storeInterval,
 	}
 	return nil
 }

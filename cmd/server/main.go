@@ -35,7 +35,15 @@ func main() {
 }
 
 func newRouter(cfg config.ServerConfig, l *logger.Logger) *gin.Engine {
-	metrics := server.New(storage.NewMemStorage(), l)
+	stor, err := storage.NewDurableMemStorage(cfg.FileStoragePath, cfg.StorageInterval(), l)
+	if err != nil {
+		l.Error("initialize storage: %v", err)
+		return nil
+	}
+	if cfg.Restore {
+		stor.Restore()
+	}
+	metrics := server.New(stor, l)
 	h := handler.New(metrics)
 
 	router := gin.New()
