@@ -1,4 +1,3 @@
-// Пакет storage реализует хранилище метрик
 package storage
 
 import (
