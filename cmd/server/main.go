@@ -9,41 +9,72 @@ import (
 	"github.com/k1nky/ypmetrics/internal/handler"
 	"github.com/k1nky/ypmetrics/internal/handler/middleware"
 	"github.com/k1nky/ypmetrics/internal/logger"
+	"github.com/k1nky/ypmetrics/internal/metric"
 	"github.com/k1nky/ypmetrics/internal/metricset/keeper"
 	"github.com/k1nky/ypmetrics/internal/storage"
 )
+
+type fileStorage interface {
+	Open(filename string) error
+	RestoreFromFile(filename string) error
+	GetCounter(name string) *metric.Counter
+	GetGauge(name string) *metric.Gauge
+	SetCounter(*metric.Counter)
+	SetGauge(*metric.Gauge)
+	Snapshot(*metric.Metrics)
+	Close()
+}
 
 func init() {
 	gin.SetMode(gin.ReleaseMode)
 }
 
+func parseConfig() (config.KeeperConfig, error) {
+	cfg := config.KeeperConfig{}
+	err := config.ParseKeeperConfig(&cfg)
+	return cfg, err
+}
+
+func openStorage(cfg config.KeeperConfig, log *logger.Logger) (fileStorage, error) {
+	var stor fileStorage
+
+	if cfg.StoreIntervalInSec == 0 {
+		stor = storage.NewSyncFileStorage(log)
+	} else {
+		stor = storage.NewAsyncFileStorage(log, cfg.StorageInterval())
+	}
+	if cfg.Restore {
+		stor.RestoreFromFile(cfg.FileStoragePath)
+	}
+	err := stor.Open(cfg.FileStoragePath)
+	return stor, err
+}
+
 func main() {
 	logger := logger.New()
-
-	cfg := config.KeeperConfig{}
-	if err := config.ParseKeeperConfig(&cfg); err != nil {
+	cfg, err := parseConfig()
+	if err != nil {
 		logger.Error("config: %s", err)
 		os.Exit(1)
 	}
 
-	router := newRouter(cfg, logger)
-	logger.Info("starting on %s", cfg.Address)
+	stor, err := openStorage(cfg, logger)
+	if err != nil {
+		logger.Error("opening storage: %v", err)
+	}
+	defer stor.Close()
 
+	// handler - слой для работы с метриками по HTTP
+	metrics := keeper.New(stor, logger)
+	router := newRouter(metrics, logger)
+
+	logger.Info("starting on %s", cfg.Address)
 	if err := http.ListenAndServe(cfg.Address.String(), router); err != nil {
 		panic(err)
 	}
 }
 
-func newRouter(cfg config.KeeperConfig, log *logger.Logger) *gin.Engine {
-	stor, err := storage.NewDurableMemStorage(cfg.FileStoragePath, cfg.StorageInterval(), log)
-	if err != nil {
-		log.Error("initialize storage: %v", err)
-		return nil
-	}
-	if cfg.Restore {
-		stor.Restore()
-	}
-	metrics := keeper.New(stor, log)
+func newRouter(metrics *keeper.Keeper, log *logger.Logger) *gin.Engine {
 	h := handler.New(metrics)
 
 	router := gin.New()
