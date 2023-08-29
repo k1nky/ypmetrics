@@ -95,11 +95,9 @@ func TestShouldCompress(t *testing.T) {
 			}
 			resp := httptest.NewRecorder()
 			resp.Header().Add("Content-type", tt.args.contentType)
-			gzw := &gzipWriter{
-				contentTypes: tt.args.allowedContentTypes,
-			}
+			gh := NewGzip(tt.args.allowedContentTypes)
 
-			if got := gzw.shouldCompress(req, resp); got != tt.want {
+			if got := gh.shouldCompress(req, resp); got != tt.want {
 				t.Errorf("shouldCompress() = %v, want %v", got, tt.want)
 			}
 		})
@@ -136,6 +134,7 @@ func TestShouldUncompress(t *testing.T) {
 			want: false,
 		},
 	}
+	gh := NewGzip([]string{})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/", nil)
@@ -143,7 +142,7 @@ func TestShouldUncompress(t *testing.T) {
 				req.Header.Add("content-encoding", tt.args.contentEncoding)
 			}
 
-			if got := shouldUncompress(req); got != tt.want {
+			if got := gh.shouldUncompress(req); got != tt.want {
 				t.Errorf("shouldUncompress() = %v, want %v", got, tt.want)
 			}
 		})
@@ -174,7 +173,7 @@ func TestCompressResponse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, r := gin.CreateTestContext(w)
-			r.POST("/", Gzip([]string{}), func(c *gin.Context) {
+			r.POST("/", NewGzip([]string{}).Use(), func(c *gin.Context) {
 				c.String(http.StatusOK, tt.body)
 			})
 			c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
@@ -231,7 +230,7 @@ func TestUncompressRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, r := gin.CreateTestContext(w)
-			r.POST("/", Gzip([]string{}), func(c *gin.Context) {
+			r.POST("/", NewGzip([]string{}).Use(), func(c *gin.Context) {
 				buf := bytes.Buffer{}
 				buf.ReadFrom(c.Request.Body)
 				assert.Equal(t, tt.body, buf.String())

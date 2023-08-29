@@ -3,42 +3,43 @@ package middleware
 import (
 	"bytes"
 	"compress/gzip"
+	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 )
 
-type gzipWriter struct {
+type bufferWriter struct {
 	gin.ResponseWriter
-	contentTypes []string
-	body         *bytes.Buffer
+	body *bytes.Buffer
 }
 
-func (gz *gzipWriter) WriteString(s string) (int, error) {
+func (gz *bufferWriter) WriteString(s string) (int, error) {
 	return gz.Write([]byte(s))
 }
 
-func (gz *gzipWriter) Write(data []byte) (int, error) {
+func (gz *bufferWriter) Write(data []byte) (int, error) {
 	gz.Header().Del("Content-Length")
 	return gz.body.Write(data)
 }
 
-func (gz *gzipWriter) WriteHeader(code int) {
+func (gz *bufferWriter) WriteHeader(code int) {
 	gz.Header().Del("Content-Length")
 	gz.ResponseWriter.WriteHeader(code)
 }
 
 // shouldCompress определяет требуется ли сжатие тела ответа.
-func (gz *gzipWriter) shouldCompress(request *http.Request, response http.ResponseWriter) bool {
+func (gh *GzipHandler) shouldCompress(request *http.Request, response http.ResponseWriter) bool {
 	if !strings.Contains(request.Header.Get("accept-encoding"), "gzip") {
 		return false
 	}
 	contentType := response.Header().Get("content-type")
-	if len(gz.contentTypes) == 0 {
+	if len(gh.contentTypes) == 0 {
 		return true
 	}
-	for _, ct := range gz.contentTypes {
+	for _, ct := range gh.contentTypes {
 		if strings.Contains(contentType, ct) {
 			return true
 		}
@@ -47,8 +48,25 @@ func (gz *gzipWriter) shouldCompress(request *http.Request, response http.Respon
 }
 
 // shouldUncompress определяет требуется ли разжатие тела запроса
-func shouldUncompress(r *http.Request) bool {
+func (gh *GzipHandler) shouldUncompress(r *http.Request) bool {
 	return strings.Contains(r.Header.Get("content-encoding"), "gzip")
+}
+
+type GzipHandler struct {
+	contentTypes []string
+	compressors  sync.Pool
+}
+
+func NewGzip(contentTypes []string) *GzipHandler {
+	return &GzipHandler{
+		contentTypes: contentTypes,
+		compressors: sync.Pool{
+			New: func() any {
+				w, _ := gzip.NewWriterLevel(io.Discard, gzip.BestSpeed)
+				return w
+			},
+		},
+	}
 }
 
 // Gzip middleware позволяет разжимать тело запроса и сжимать тело ответа.
@@ -59,9 +77,9 @@ func shouldUncompress(r *http.Request) bool {
 //	тип контента ответа разрешен для сжатия (contentTypes).
 //
 // Если список разрешенных типов пустой, то сжимать можно тело с любым типом.
-func Gzip(contentTypes []string) gin.HandlerFunc {
+func (gh *GzipHandler) Use() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		if shouldUncompress(ctx.Request) {
+		if gh.shouldUncompress(ctx.Request) {
 			// требуется разжатие тела запроса, поэтому подменяем тело запроса
 			gz, err := gzip.NewReader(ctx.Request.Body)
 			if err != nil {
@@ -72,26 +90,24 @@ func Gzip(contentTypes []string) gin.HandlerFunc {
 			ctx.Request.Body = gz
 		}
 
-		gzwriter := &gzipWriter{
+		gzwriter := &bufferWriter{
 			ResponseWriter: ctx.Writer,
 			body:           &bytes.Buffer{},
-			contentTypes:   contentTypes,
 		}
 		ctx.Writer = gzwriter
 		// для всех последующих обработчиков тело ответа будем писать в поле `body` gzwriter,
 		// т.к. пока не отработают все обработчики, нельзя достоверно определить потребуется ли
 		// сжатие ответа (нужно проверить заголовок Content-Type)
 		ctx.Next()
-		if gzwriter.shouldCompress(ctx.Request, gzwriter) {
+		if gh.shouldCompress(ctx.Request, gzwriter) {
 			gzwriter.Header().Add("Content-Encoding", "gzip")
-			gz, err := gzip.NewWriterLevel(gzwriter.ResponseWriter, gzip.BestSpeed)
-			if err != nil {
-				ctx.AbortWithStatus(http.StatusInternalServerError)
-				return
-			}
-			defer gz.Close()
+			gz := gh.compressors.Get().(*gzip.Writer)
+			defer gh.compressors.Put(gz)
+
+			gz.Reset(gzwriter.ResponseWriter)
 			// сжатие требуется, в ответ пишем сжатые данные
 			gz.Write(gzwriter.body.Bytes())
+			gz.Close()
 		} else {
 			// сжатие не требуется, в ответ пишем данные как есть
 			gzwriter.ResponseWriter.Write(gzwriter.body.Bytes())

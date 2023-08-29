@@ -78,7 +78,8 @@ func newRouter(metrics *keeper.Keeper, log *logger.Logger) *gin.Engine {
 	h := handler.New(metrics)
 
 	router := gin.New()
-	router.Use(middleware.Logger(log), middleware.Gzip([]string{"application/json", "text/html"}))
+	// router.Use(middleware.Logger(log), middleware.NewGzip([]string{"application/json", "text/html"}).Use())
+	router.Use(middleware.Logger(log), middleware.NewGzip([]string{}).Use())
 
 	router.GET("/", h.AllMetrics())
 
