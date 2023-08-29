@@ -36,18 +36,18 @@ func parseConfig() (config.KeeperConfig, error) {
 }
 
 func openStorage(cfg config.KeeperConfig, log *logger.Logger) (fileStorage, error) {
-	var stor fileStorage
+	var store fileStorage
 
 	if cfg.StoreIntervalInSec == 0 {
-		stor = storage.NewSyncFileStorage(log)
+		store = storage.NewSyncFileStorage(log)
 	} else {
-		stor = storage.NewAsyncFileStorage(log, cfg.StorageInterval())
+		store = storage.NewAsyncFileStorage(log, cfg.StorageInterval())
 	}
 	if cfg.Restore {
-		stor.RestoreFromFile(cfg.FileStoragePath)
+		store.RestoreFromFile(cfg.FileStoragePath)
 	}
-	err := stor.Open(cfg.FileStoragePath)
-	return stor, err
+	err := store.Open(cfg.FileStoragePath)
+	return store, err
 }
 
 func main() {
@@ -58,14 +58,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	stor, err := openStorage(cfg, logger)
+	store, err := openStorage(cfg, logger)
 	if err != nil {
 		logger.Error("opening storage: %v", err)
 	}
-	defer stor.Close()
+	defer store.Close()
 
 	// handler - слой для работы с метриками по HTTP
-	metrics := metricset.NewSet(stor)
+	metrics := metricset.NewSet(store)
 	router := newRouter(metrics, logger)
 
 	logger.Info("starting on %s", cfg.Address)
@@ -78,8 +78,7 @@ func newRouter(metrics *metricset.Set, log *logger.Logger) *gin.Engine {
 	h := handler.New(metrics)
 
 	router := gin.New()
-	// router.Use(middleware.Logger(log), middleware.NewGzip([]string{"application/json", "text/html"}).Use())
-	router.Use(middleware.Logger(log), middleware.NewGzip([]string{}).Use())
+	router.Use(middleware.Logger(log), middleware.NewGzip([]string{"application/json", "text/html"}).Use())
 
 	router.GET("/", h.AllMetrics())
 
