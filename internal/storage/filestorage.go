@@ -14,7 +14,7 @@ import (
 // Позволяет сохранять свое состояние в формате JSON на файл или любой io.Writer.
 type FileStorage struct {
 	MemStorage
-	writeLock sync.Mutex
+	writeLock sync.RWMutex
 	logger    storageLogger
 }
 
