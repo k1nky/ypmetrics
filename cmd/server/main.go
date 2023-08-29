@@ -10,7 +10,7 @@ import (
 	"github.com/k1nky/ypmetrics/internal/handler/middleware"
 	"github.com/k1nky/ypmetrics/internal/logger"
 	"github.com/k1nky/ypmetrics/internal/metric"
-	"github.com/k1nky/ypmetrics/internal/metricset/keeper"
+	"github.com/k1nky/ypmetrics/internal/metricset"
 	"github.com/k1nky/ypmetrics/internal/storage"
 )
 
@@ -65,7 +65,7 @@ func main() {
 	defer stor.Close()
 
 	// handler - слой для работы с метриками по HTTP
-	metrics := keeper.New(stor, logger)
+	metrics := metricset.NewSet(stor)
 	router := newRouter(metrics, logger)
 
 	logger.Info("starting on %s", cfg.Address)
@@ -74,7 +74,7 @@ func main() {
 	}
 }
 
-func newRouter(metrics *keeper.Keeper, log *logger.Logger) *gin.Engine {
+func newRouter(metrics *metricset.Set, log *logger.Logger) *gin.Engine {
 	h := handler.New(metrics)
 
 	router := gin.New()

@@ -9,15 +9,14 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/k1nky/ypmetrics/internal/logger"
 	"github.com/k1nky/ypmetrics/internal/metric"
-	"github.com/k1nky/ypmetrics/internal/metricset/keeper"
+	"github.com/k1nky/ypmetrics/internal/metricset"
 	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/stretchr/testify/assert"
 )
 
-func newTestMetrics() *keeper.Keeper {
-	ms := keeper.New(storage.NewMemStorage(), logger.New())
+func newTestMetrics() *metricset.Set {
+	ms := metricset.NewSet(storage.NewMemStorage())
 	ms.UpdateCounter("c1", 10)
 	ms.UpdateGauge("g1", 10.10)
 	return ms
@@ -437,7 +436,7 @@ func TestAllMetrics(t *testing.T) {
 	}
 	tests := []struct {
 		name string
-		ms   *keeper.Keeper
+		ms   *metricset.Set
 		want want
 	}{
 		{
@@ -454,7 +453,7 @@ func TestAllMetrics(t *testing.T) {
 				statusCode: http.StatusOK,
 				value:      "",
 			},
-			ms: keeper.New(storage.NewMemStorage(), logger.New()),
+			ms: metricset.NewSet(storage.NewMemStorage()),
 		},
 	}
 
