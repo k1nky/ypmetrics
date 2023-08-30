@@ -94,33 +94,6 @@ func (suite *fileStorageTestSuite) TestRestoreInvalidJSON() {
 	}
 }
 
-func (suite *fileStorageTestSuite) TestRestoreFromInaccessibleFile() {
-	filename := "/123"
-	if err := suite.fs.RestoreFromFile(filename); err == nil {
-		suite.T().Errorf("expected error")
-	}
-}
-
-func (suite *fileStorageTestSuite) TestRestoreFromFile() {
-	filename := "/tmp/123"
-	data := `{"Counters":[{"Name":"c0","Value":1},{"Name":"c1","Value":15}],"Gauges":[{"Name":"g0","Value":1.1},{"Name":"g1","Value":36.6}]}`
-	if err := os.WriteFile(filename, []byte(data), 0666); err != nil {
-		suite.T().Errorf("unexpected error = %v", err)
-		return
-	}
-	suite.fs.counters = make(map[string]*metric.Counter)
-	suite.fs.gauges = make(map[string]*metric.Gauge)
-	if err := suite.fs.RestoreFromFile(filename); err != nil {
-		suite.T().Errorf("unexpected error = %v", err)
-		return
-	}
-	defer os.Remove(filename)
-	wantCounters := newTestCounters()
-	wantGauges := newTestGauges()
-	suite.Assert().Equal(wantCounters, suite.fs.counters)
-	suite.Assert().Equal(wantGauges, suite.fs.gauges)
-}
-
 func (suite *fileStorageTestSuite) TestWriteToFile() {
 	filename := "/tmp/123"
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0660)

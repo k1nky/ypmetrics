@@ -92,3 +92,7 @@ func (ms *MemStorage) Snapshot(snap *metric.Metrics) {
 		snap.Gauges = append(snap.Gauges, metric.NewGauge(v.Name, v.Value))
 	}
 }
+
+func (ms *MemStorage) Close() error {
+	return nil
+}

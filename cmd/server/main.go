@@ -14,15 +14,13 @@ import (
 	"github.com/k1nky/ypmetrics/internal/storage"
 )
 
-type fileStorage interface {
-	Open(filename string) error
-	RestoreFromFile(filename string) error
+type metricStorage interface {
 	GetCounter(name string) *metric.Counter
 	GetGauge(name string) *metric.Gauge
 	SetCounter(*metric.Counter)
 	SetGauge(*metric.Gauge)
 	Snapshot(*metric.Metrics)
-	Close()
+	Close() error
 }
 
 func init() {
@@ -35,19 +33,17 @@ func parseConfig() (config.KeeperConfig, error) {
 	return cfg, err
 }
 
-func openStorage(cfg config.KeeperConfig, log *logger.Logger) (fileStorage, error) {
-	var store fileStorage
-
-	if cfg.StoreIntervalInSec == 0 {
-		store = storage.NewSyncFileStorage(log)
-	} else {
-		store = storage.NewAsyncFileStorage(log, cfg.StorageInterval())
+func openStorage(cfg config.KeeperConfig, log *logger.Logger) (metricStorage, error) {
+	switch {
+	case cfg.StoreIntervalInSec == 0:
+		s := storage.NewSyncFileStorage(log)
+		return s, s.Open(cfg.FileStoragePath, cfg.Restore)
+	case cfg.StoreIntervalInSec > 0:
+		s := storage.NewAsyncFileStorage(log, cfg.StorageInterval())
+		return s, s.Open(cfg.FileStoragePath, cfg.Restore)
+	default:
+		return storage.NewMemStorage(), nil
 	}
-	if cfg.Restore {
-		store.RestoreFromFile(cfg.FileStoragePath)
-	}
-	err := store.Open(cfg.FileStoragePath)
-	return store, err
 }
 
 func main() {

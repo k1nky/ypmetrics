@@ -11,10 +11,10 @@ import (
 )
 
 // FileStorage хранит текущие метрики в памяти.
-// Позволяет сохранять свое состояние в формате JSON на файл или любой io.Writer.
+// Позволяет сохранять свое состояние в формате JSON в файл или любой io.Writer.
 type FileStorage struct {
 	MemStorage
-	writeLock sync.RWMutex
+	writeLock sync.Mutex
 	logger    storageLogger
 }
 
@@ -23,6 +23,7 @@ type AsyncFileStorage struct {
 	FileStorage
 	flushInterval time.Duration
 	isClosed      bool
+	closeLock     sync.RWMutex
 }
 
 // SyncFileStorage хранит текущие метрики в памяти и сохраняет их в файл после каждого изменения.
@@ -41,6 +42,7 @@ func NewFileStorage(logger storageLogger) *FileStorage {
 			counters: make(map[string]*metric.Counter),
 			gauges:   make(map[string]*metric.Gauge),
 		},
+		logger: logger,
 	}
 }
 
@@ -53,6 +55,7 @@ func NewAsyncFileStorage(logger storageLogger, flushInterval time.Duration) *Asy
 				counters: make(map[string]*metric.Counter),
 				gauges:   make(map[string]*metric.Gauge),
 			},
+			logger: logger,
 		},
 		flushInterval: flushInterval,
 	}
@@ -67,6 +70,7 @@ func NewSyncFileStorage(logger storageLogger) *SyncFileStorage {
 				counters: make(map[string]*metric.Counter),
 				gauges:   make(map[string]*metric.Gauge),
 			},
+			logger: logger,
 		},
 	}
 }
@@ -109,16 +113,6 @@ func (fs *FileStorage) Restore(r io.Reader) error {
 	return nil
 }
 
-// Restore восстанавливает метрики из файла
-func (fs *FileStorage) RestoreFromFile(filename string) error {
-	f, err := os.Open(filename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return fs.Restore(f)
-}
-
 // WriteToFile сохраняет метрики в файл. Файл должен быть предварительно открыт.
 func (fs *FileStorage) WriteToFile(f *os.File) error {
 	fs.writeLock.Lock()
@@ -136,28 +130,36 @@ func (fs *FileStorage) WriteToFile(f *os.File) error {
 }
 
 // Close закрывает асинхронное файловое хранилище
-func (afs *AsyncFileStorage) Close() {
+func (afs *AsyncFileStorage) Close() error {
 	// выставляем флаг, что горутина, в которой периодически сохраняются метрики
 	// должна закрыться
 	// TODO: канал подходит лучше для этой задачи, оставить для будущих спринтов
+	afs.closeLock.Lock()
+	defer afs.closeLock.Unlock()
 	afs.isClosed = true
+	return nil
 }
 
 // Close закрывает синхронное файловое хранилище
-func (sfs *SyncFileStorage) Close() {
-	sfs.writer.Close()
+func (sfs *SyncFileStorage) Close() error {
+	return sfs.writer.Close()
 }
 
 // Open открывает асинхронное файловое хранилище
-func (afs *AsyncFileStorage) Open(filename string) error {
+func (afs *AsyncFileStorage) Open(filename string, restore bool) error {
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
 		return err
+	}
+	if err := afs.Restore(f); err != nil {
+		afs.logger.Error("Open: %v", err)
 	}
 	go func() {
 		defer f.Close()
 		for {
 			time.Sleep(afs.flushInterval)
+			afs.closeLock.RLock()
+			defer afs.closeLock.RUnlock()
 			if afs.isClosed {
 				return
 			}
@@ -170,10 +172,13 @@ func (afs *AsyncFileStorage) Open(filename string) error {
 }
 
 // Open открывает синхронное файловое хранилище
-func (sfs *SyncFileStorage) Open(filename string) error {
+func (sfs *SyncFileStorage) Open(filename string, restore bool) error {
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
 		return err
+	}
+	if err := sfs.Restore(f); err != nil {
+		sfs.logger.Error("Open: %v", err)
 	}
 	sfs.writer = f
 	return nil
