@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/k1nky/ypmetrics/internal/apiclient"
@@ -28,5 +29,7 @@ func Run(l *logger.Logger, cfg config.PollerConfig) {
 	client := apiclient.New(string(cfg.Address))
 	p := poller.New(cfg, store, l, client)
 	p.AddCollector(collector.PollCounter{}, collector.Random{}, collector.Runtime{})
-	p.Run()
+	ctx, cancel := context.WithCancel(context.TODO())
+	p.Run(ctx)
+	defer cancel()
 }
