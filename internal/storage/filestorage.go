@@ -21,9 +21,7 @@ type FileStorage struct {
 // AsyncFileStorage хранит текущие метрики в памяти, но периодически сохраняет их в файл.
 type AsyncFileStorage struct {
 	FileStorage
-	flushInterval time.Duration
-	isClosed      bool
-	closeLock     sync.RWMutex
+	stopFlush chan struct{}
 }
 
 // SyncFileStorage хранит текущие метрики в памяти и сохраняет их в файл после каждого изменения.
@@ -48,7 +46,7 @@ func NewFileStorage(logger storageLogger) *FileStorage {
 
 // NewAsyncFileStorage возвращает новое файловое хранилище, сохранение изменений в котором,
 // выполняется асинхронно с заданной периодичностью.
-func NewAsyncFileStorage(logger storageLogger, flushInterval time.Duration) *AsyncFileStorage {
+func NewAsyncFileStorage(logger storageLogger) *AsyncFileStorage {
 	return &AsyncFileStorage{
 		FileStorage: FileStorage{
 			MemStorage: MemStorage{
@@ -57,7 +55,7 @@ func NewAsyncFileStorage(logger storageLogger, flushInterval time.Duration) *Asy
 			},
 			logger: logger,
 		},
-		flushInterval: flushInterval,
+		stopFlush: make(chan struct{}),
 	}
 }
 
@@ -131,12 +129,7 @@ func (fs *FileStorage) WriteToFile(f *os.File) error {
 
 // Close закрывает асинхронное файловое хранилище
 func (afs *AsyncFileStorage) Close() error {
-	// выставляем флаг, что горутина, в которой периодически сохраняются метрики
-	// должна закрыться
-	// TODO: канал подходит лучше для этой задачи, оставить для будущих спринтов
-	afs.closeLock.Lock()
-	defer afs.closeLock.Unlock()
-	afs.isClosed = true
+	close(afs.stopFlush)
 	return nil
 }
 
@@ -146,7 +139,7 @@ func (sfs *SyncFileStorage) Close() error {
 }
 
 // Open открывает асинхронное файловое хранилище
-func (afs *AsyncFileStorage) Open(filename string, restore bool) error {
+func (afs *AsyncFileStorage) Open(filename string, restore bool, flushInterval time.Duration) error {
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
 		return err
@@ -155,16 +148,16 @@ func (afs *AsyncFileStorage) Open(filename string, restore bool) error {
 		afs.logger.Error("Open: %v", err)
 	}
 	go func() {
+		t := time.NewTicker(flushInterval)
 		defer f.Close()
 		for {
-			time.Sleep(afs.flushInterval)
-			afs.closeLock.RLock()
-			defer afs.closeLock.RUnlock()
-			if afs.isClosed {
+			select {
+			case <-afs.stopFlush:
 				return
-			}
-			if err := afs.WriteToFile(f); err != nil {
-				afs.logger.Error("Flash: %v", err)
+			case <-t.C:
+				if err := afs.WriteToFile(f); err != nil {
+					afs.logger.Error("Flash: %v", err)
+				}
 			}
 		}
 	}()

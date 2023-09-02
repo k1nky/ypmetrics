@@ -39,8 +39,8 @@ func openStorage(cfg config.KeeperConfig, log *logger.Logger) (metricStorage, er
 		s := storage.NewSyncFileStorage(log)
 		return s, s.Open(cfg.FileStoragePath, cfg.Restore)
 	case cfg.StoreIntervalInSec > 0:
-		s := storage.NewAsyncFileStorage(log, cfg.StorageInterval())
-		return s, s.Open(cfg.FileStoragePath, cfg.Restore)
+		s := storage.NewAsyncFileStorage(log)
+		return s, s.Open(cfg.FileStoragePath, cfg.Restore, cfg.StorageInterval())
 	default:
 		return storage.NewMemStorage(), nil
 	}
