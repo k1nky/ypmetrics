@@ -7,6 +7,7 @@ type storageLogger interface {
 	Error(template string, args ...interface{})
 }
 
+//go:generate mockgen -source=contract.go -destination=mock/storage.go -package=mock Storage
 type Storage interface {
 	GetCounter(name string) *metric.Counter
 	GetGauge(name string) *metric.Gauge
