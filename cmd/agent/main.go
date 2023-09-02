@@ -7,8 +7,8 @@ import (
 	"github.com/k1nky/ypmetrics/internal/collector"
 	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/logger"
-	"github.com/k1nky/ypmetrics/internal/metricset/poller"
 	"github.com/k1nky/ypmetrics/internal/storage"
+	"github.com/k1nky/ypmetrics/internal/usecases/poller"
 )
 
 func main() {
@@ -18,10 +18,15 @@ func main() {
 		l.Error("config: %s", err)
 		os.Exit(1)
 	}
+	Run(l, cfg)
+}
+
+func Run(l *logger.Logger, cfg config.PollerConfig) {
 	// для агента храним метрики в памяти
-	stor := storage.NewMemStorage()
+	store := storage.NewMemStorage()
+	defer store.Close()
 	client := apiclient.New(string(cfg.Address))
-	a := poller.New(cfg, stor, l, client)
-	a.AddCollector(collector.PollCounter{}, collector.Random{}, collector.Runtime{})
-	a.Run()
+	p := poller.New(cfg, store, l, client)
+	p.AddCollector(collector.PollCounter{}, collector.Random{}, collector.Runtime{})
+	p.Run()
 }

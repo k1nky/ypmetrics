@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -108,7 +108,7 @@ func (suite *fileStorageTestSuite) TestWriteToFile() {
 	data, _ := os.ReadFile(filename)
 	want := `{"Counters":[{"Name":"c0","Value":1},{"Name":"c1","Value":15}],"Gauges":[{"Name":"g0","Value":1.1},{"Name":"g1","Value":36.6}]}`
 	assertMetricsJSONEq(suite.T(), want, string(data))
-	suite.fs.SetCounter(metric.NewCounter("c2", 20))
+	suite.fs.UpdateCounter("c2", 20)
 	if err := suite.fs.WriteToFile(f); err != nil {
 		suite.T().Errorf("unexpected error = %v", err)
 		return

@@ -6,19 +6,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/k1nky/ypmetrics/internal/config"
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/handler"
 	"github.com/k1nky/ypmetrics/internal/handler/middleware"
 	"github.com/k1nky/ypmetrics/internal/logger"
-	"github.com/k1nky/ypmetrics/internal/metric"
-	"github.com/k1nky/ypmetrics/internal/metricset"
 	"github.com/k1nky/ypmetrics/internal/storage"
+	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
 )
 
 type metricStorage interface {
 	GetCounter(name string) *metric.Counter
 	GetGauge(name string) *metric.Gauge
-	SetCounter(*metric.Counter)
-	SetGauge(*metric.Gauge)
+	UpdateCounter(name string, value int64)
+	UpdateGauge(name string, value float64)
 	Snapshot(*metric.Metrics)
 	Close() error
 }
@@ -47,34 +47,36 @@ func openStorage(cfg config.KeeperConfig, log *logger.Logger) (metricStorage, er
 }
 
 func main() {
-	logger := logger.New()
+	l := logger.New()
 	cfg, err := parseConfig()
 	if err != nil {
-		logger.Error("config: %s", err)
+		l.Error("config: %s", err)
 		os.Exit(1)
 	}
+	Run(l, cfg)
+}
 
-	store, err := openStorage(cfg, logger)
+func Run(l *logger.Logger, cfg config.KeeperConfig) {
+	store, err := openStorage(cfg, l)
 	if err != nil {
-		logger.Error("opening storage: %v", err)
+		l.Error("opening storage: %v", err)
 	}
+
 	defer store.Close()
+	uc := keeper.New(store)
+	h := handler.New(*uc)
+	router := newRouter(h, l)
 
-	// handler - слой для работы с метриками по HTTP
-	metrics := metricset.NewSet(store)
-	router := newRouter(metrics, logger)
-
-	logger.Info("starting on %s", cfg.Address)
+	l.Info("starting on %s", cfg.Address)
 	if err := http.ListenAndServe(cfg.Address.String(), router); err != nil {
 		panic(err)
 	}
+
 }
 
-func newRouter(metrics *metricset.Set, log *logger.Logger) *gin.Engine {
-	h := handler.New(metrics)
-
+func newRouter(h handler.Handler, l *logger.Logger) *gin.Engine {
 	router := gin.New()
-	router.Use(middleware.Logger(log), middleware.NewGzip([]string{"application/json", "text/html"}).Use())
+	router.Use(middleware.Logger(l), middleware.NewGzip([]string{"application/json", "text/html"}).Use())
 
 	router.GET("/", h.AllMetrics())
 

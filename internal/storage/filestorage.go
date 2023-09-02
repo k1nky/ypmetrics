@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
 
 // FileStorage хранит текущие метрики в памяти.
@@ -185,16 +185,16 @@ func (sfs *SyncFileStorage) Open(filename string, restore bool) error {
 }
 
 // SetCounter записывает значение метрики типа Counter и сохраняет изменения в файл.
-func (sfs *SyncFileStorage) SetCounter(m *metric.Counter) {
-	sfs.MemStorage.SetCounter(m)
+func (sfs *SyncFileStorage) UpdateCounter(name string, value int64) {
+	sfs.MemStorage.UpdateCounter(name, value)
 	if err := sfs.WriteToFile(sfs.writer); err != nil {
 		sfs.logger.Error("SetCounter: %v", err)
 	}
 }
 
 // SetGauge записывает значение метрики типа Gauge и сохраняет изменения в файл.
-func (sfs *SyncFileStorage) SetGauge(m *metric.Gauge) {
-	sfs.MemStorage.SetGauge(m)
+func (sfs *SyncFileStorage) UpdateGauge(name string, value float64) {
+	sfs.MemStorage.UpdateGauge(name, value)
 	if err := sfs.WriteToFile(sfs.writer); err != nil {
 		sfs.logger.Error("SetGauge: %v", err)
 	}

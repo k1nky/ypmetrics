@@ -1,7 +1,7 @@
 package collector
 
 import (
-	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
 
 type PollCounter struct{}

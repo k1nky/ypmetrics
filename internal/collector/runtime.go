@@ -3,7 +3,7 @@ package collector
 import (
 	"runtime"
 
-	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
 
 type Runtime struct{}

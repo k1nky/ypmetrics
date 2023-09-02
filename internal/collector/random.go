@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
 
 type Random struct{}

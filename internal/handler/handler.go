@@ -8,33 +8,27 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/protocol"
+	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
 )
-
-type metricSet interface {
-	GetMetrics() metric.Metrics
-	GetCounter(name string) *metric.Counter
-	GetGauge(name string) *metric.Gauge
-	UpdateCounter(name string, value int64)
-	UpdateGauge(name string, value float64)
-}
 
 // Обработчик запросов к REST API набора метрик
 type Handler struct {
-	metrics metricSet
+	keeper keeper.Keeper
 }
 
-func New(metricset metricSet) Handler {
+func New(keeper keeper.Keeper) Handler {
 	return Handler{
-		metrics: metricset,
+		keeper: keeper,
 	}
 }
 
 // Обработчик вывода всех метрик на сервере
 func (h Handler) AllMetrics() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		metrics := h.metrics.GetMetrics()
+		metrics := metric.Metrics{}
+		h.keeper.Snapshot(&metrics)
 		result := strings.Builder{}
 		for _, m := range metrics.Counters {
 			result.WriteString(fmt.Sprintf("%s = %s\n", m.Name, m))
@@ -58,14 +52,14 @@ func (h Handler) Value() gin.HandlerFunc {
 		strValue := ""
 		switch t {
 		case TypeCounter:
-			m := h.metrics.GetCounter(ctx.Param("name"))
+			m := h.keeper.GetCounter(ctx.Param("name"))
 			if m == nil {
 				ctx.Status(http.StatusNotFound)
 				return
 			}
 			strValue = m.String()
 		case TypeGauge:
-			m := h.metrics.GetGauge(ctx.Param("name"))
+			m := h.keeper.GetGauge(ctx.Param("name"))
 			if m == nil {
 				ctx.Status(http.StatusNotFound)
 				return
@@ -91,14 +85,14 @@ func (h Handler) ValueJSON() gin.HandlerFunc {
 		}
 		switch t {
 		case TypeCounter:
-			mm := h.metrics.GetCounter(m.ID)
+			mm := h.keeper.GetCounter(m.ID)
 			if mm == nil {
 				ctx.Status(http.StatusNotFound)
 				return
 			}
 			m.Delta = &mm.Value
 		case TypeGauge:
-			mm := h.metrics.GetGauge(m.ID)
+			mm := h.keeper.GetGauge(m.ID)
 			if mm == nil {
 				ctx.Status(http.StatusNotFound)
 				return
@@ -123,14 +117,14 @@ func (h Handler) Update() gin.HandlerFunc {
 				ctx.Status(http.StatusBadRequest)
 				return
 			} else {
-				h.metrics.UpdateCounter(ctx.Param("name"), v)
+				h.keeper.UpdateCounter(ctx.Param("name"), v)
 			}
 		case TypeGauge:
 			if v, err := convertToFloat64(ctx.Param("value")); err != nil {
 				ctx.Status(http.StatusBadRequest)
 				return
 			} else {
-				h.metrics.UpdateGauge(ctx.Param("name"), v)
+				h.keeper.UpdateGauge(ctx.Param("name"), v)
 			}
 		}
 		ctx.Status(http.StatusOK)
@@ -156,16 +150,16 @@ func (h Handler) UpdateJSON() gin.HandlerFunc {
 				ctx.Status(http.StatusBadRequest)
 				return
 			}
-			h.metrics.UpdateCounter(m.ID, *m.Delta)
-			c := h.metrics.GetCounter(m.ID)
+			h.keeper.UpdateCounter(m.ID, *m.Delta)
+			c := h.keeper.GetCounter(m.ID)
 			m.Delta = &c.Value
 		case TypeGauge:
 			if m.Value == nil {
 				ctx.Status(http.StatusBadRequest)
 				return
 			}
-			h.metrics.UpdateGauge(m.ID, *m.Value)
-			g := h.metrics.GetGauge(m.ID)
+			h.keeper.UpdateGauge(m.ID, *m.Value)
+			g := h.keeper.GetGauge(m.ID)
 			m.Value = &g.Value
 		}
 		ctx.JSON(http.StatusOK, m)

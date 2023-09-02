@@ -9,14 +9,14 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/k1nky/ypmetrics/internal/metric"
-	"github.com/k1nky/ypmetrics/internal/metricset"
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/storage"
+	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
 	"github.com/stretchr/testify/assert"
 )
 
-func newTestMetrics() *metricset.Set {
-	ms := metricset.NewSet(storage.NewMemStorage())
+func newTestMetrics() storage.Storage {
+	ms := storage.NewMemStorage()
 	ms.UpdateCounter("c1", 10)
 	ms.UpdateGauge("g1", 10.10)
 	return ms
@@ -134,7 +134,8 @@ func TestUpdate(t *testing.T) {
 	}
 	gin.SetMode(gin.TestMode)
 	ms := newTestMetrics()
-	h := New(ms)
+	keeper := keeper.New(ms)
+	h := New(*keeper)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
@@ -246,7 +247,8 @@ func TestUpdateJSON(t *testing.T) {
 	}
 
 	ms := newTestMetrics()
-	h := New(ms)
+	keeper := keeper.New(ms)
+	h := New(*keeper)
 	gin.SetMode(gin.TestMode)
 
 	for _, tt := range tests {
@@ -326,7 +328,8 @@ func TestValue(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	ms := newTestMetrics()
-	h := New(ms)
+	keeper := keeper.New(ms)
+	h := New(*keeper)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -400,7 +403,8 @@ func TestValueJSON(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	ms := newTestMetrics()
-	h := New(ms)
+	keeper := keeper.New(ms)
+	h := New(*keeper)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -436,7 +440,7 @@ func TestAllMetrics(t *testing.T) {
 	}
 	tests := []struct {
 		name string
-		ms   *metricset.Set
+		ms   storage.Storage
 		want want
 	}{
 		{
@@ -453,7 +457,7 @@ func TestAllMetrics(t *testing.T) {
 				statusCode: http.StatusOK,
 				value:      "",
 			},
-			ms: metricset.NewSet(storage.NewMemStorage()),
+			ms: storage.NewMemStorage(),
 		},
 	}
 
@@ -462,7 +466,8 @@ func TestAllMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, r := gin.CreateTestContext(w)
-			h := New(tt.ms)
+			keeper := keeper.New(tt.ms)
+			h := New(*keeper)
 			r.GET("/", h.AllMetrics())
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 			r.ServeHTTP(w, c.Request)
