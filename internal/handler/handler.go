@@ -2,42 +2,33 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
+	"github.com/k1nky/ypmetrics/internal/protocol"
+	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
 )
 
-// typeMetric тип метрики
-type typeMetric string
+// Обработчик запросов к REST API набора метрик
+type Handler struct {
+	keeper keeper.Keeper
+}
 
-const (
-	TypeGauge   = typeMetric("gauge")
-	TypeCounter = typeMetric("counter")
-)
-
-// IsValid возвращает true, если тип метрики имеет допустимое значение.
-func (t typeMetric) IsValid() bool {
-	switch t {
-	case TypeGauge, TypeCounter:
-		return true
-	default:
-		return false
+func New(keeper keeper.Keeper) Handler {
+	return Handler{
+		keeper: keeper,
 	}
 }
 
-// isValidMetricName возвращает true, если имя метрики имеет допустимое значение.
-func isValidMetricName(s string) bool {
-	return len(s) > 0
-}
-
 // Обработчик вывода всех метрик на сервере
-func AllMetricsHandler(ms metric.Set) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		metrics := ms.GetMetrics()
+func (h Handler) AllMetrics() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		metrics := metric.Metrics{}
+		h.keeper.Snapshot(&metrics)
 		result := strings.Builder{}
 		for _, m := range metrics.Counters {
 			result.WriteString(fmt.Sprintf("%s = %s\n", m.Name, m))
@@ -45,79 +36,132 @@ func AllMetricsHandler(ms metric.Set) gin.HandlerFunc {
 		for _, m := range metrics.Gauges {
 			result.WriteString(fmt.Sprintf("%s = %s\n", m.Name, m))
 		}
-		c.String(http.StatusOK, result.String())
+		ctx.Writer.Header().Add("content-type", "text/html")
+		ctx.String(http.StatusOK, result.String())
 	}
 }
 
 // Обработчик вывода текущего значения запрашиваемой метрики
-func ValueHandler(ms metric.Set) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		t := typeMetric(c.Param("type"))
-		if !t.IsValid() || !isValidMetricName(c.Param("name")) {
-			c.String(http.StatusNotFound, "")
+func (h Handler) Value() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		t := metricType(ctx.Param("type"))
+		if !isValidMetricParams(t, ctx.Param("name")) {
+			ctx.Status(http.StatusBadRequest)
 			return
 		}
 		strValue := ""
 		switch t {
 		case TypeCounter:
-			m := ms.GetCounter(c.Param("name"))
+			m := h.keeper.GetCounter(ctx.Param("name"))
 			if m == nil {
-				c.String(http.StatusNotFound, "")
+				ctx.Status(http.StatusNotFound)
 				return
 			}
 			strValue = m.String()
 		case TypeGauge:
-			m := ms.GetGauge(c.Param("name"))
+			m := h.keeper.GetGauge(ctx.Param("name"))
 			if m == nil {
-				c.String(http.StatusNotFound, "")
+				ctx.Status(http.StatusNotFound)
 				return
 			}
 			strValue = m.String()
 		}
-		c.String(http.StatusOK, strValue)
+		ctx.String(http.StatusOK, strValue)
 	}
 }
 
-// Обработчик обновления значения указаной метрики
-func UpdateHandler(ms metric.Set) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		t := typeMetric(c.Param("type"))
-		if !t.IsValid() || !isValidMetricName(c.Param("name")) {
-			c.String(http.StatusBadRequest, "")
+// Обработчик вывода текущего значения запрашиваемой метрики в формате JSON
+func (h Handler) ValueJSON() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		var m protocol.Metrics
+		if err := json.NewDecoder(ctx.Request.Body).Decode(&m); err != nil {
+			ctx.Status(http.StatusBadRequest)
+			return
+		}
+		t := metricType(m.MType)
+		if !isValidMetricParams(t, m.ID) {
+			ctx.Status(http.StatusBadRequest)
 			return
 		}
 		switch t {
 		case TypeCounter:
-			if v, err := convertToInt64(c.Param("value")); err != nil {
-				c.Status(http.StatusBadRequest)
+			mm := h.keeper.GetCounter(m.ID)
+			if mm == nil {
+				ctx.Status(http.StatusNotFound)
+				return
+			}
+			m.Delta = &mm.Value
+		case TypeGauge:
+			mm := h.keeper.GetGauge(m.ID)
+			if mm == nil {
+				ctx.Status(http.StatusNotFound)
+				return
+			}
+			m.Value = &mm.Value
+		}
+		ctx.JSON(http.StatusOK, m)
+	}
+}
+
+// Обработчик обновления значения указаной метрики
+func (h Handler) Update() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		t := metricType(ctx.Param("type"))
+		if !isValidMetricParams(t, ctx.Param("name")) {
+			ctx.Status(http.StatusBadRequest)
+			return
+		}
+		switch t {
+		case TypeCounter:
+			if v, err := convertToInt64(ctx.Param("value")); err != nil {
+				ctx.Status(http.StatusBadRequest)
 				return
 			} else {
-				ms.UpdateCounter(c.Param("name"), v)
+				h.keeper.UpdateCounter(ctx.Param("name"), v)
 			}
 		case TypeGauge:
-			if v, err := convertToFloat64(c.Param("value")); err != nil {
-				c.Status(http.StatusBadRequest)
+			if v, err := convertToFloat64(ctx.Param("value")); err != nil {
+				ctx.Status(http.StatusBadRequest)
 				return
 			} else {
-				ms.UpdateGauge(c.Param("name"), v)
+				h.keeper.UpdateGauge(ctx.Param("name"), v)
 			}
 		}
-		c.Status(http.StatusOK)
+		ctx.Status(http.StatusOK)
 	}
 }
 
-func convertToInt64(s string) (v int64, err error) {
-	v, err = strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return 0, err
+// Обработчик обновления значения указаной метрики из JSON
+func (h Handler) UpdateJSON() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		var m protocol.Metrics
+		if err := json.NewDecoder(ctx.Request.Body).Decode(&m); err != nil {
+			ctx.Status(http.StatusBadRequest)
+			return
+		}
+		t := metricType(m.MType)
+		if !isValidMetricParams(t, m.ID) {
+			ctx.Status(http.StatusBadRequest)
+			return
+		}
+		switch t {
+		case TypeCounter:
+			if m.Delta == nil {
+				ctx.Status(http.StatusBadRequest)
+				return
+			}
+			h.keeper.UpdateCounter(m.ID, *m.Delta)
+			c := h.keeper.GetCounter(m.ID)
+			m.Delta = &c.Value
+		case TypeGauge:
+			if m.Value == nil {
+				ctx.Status(http.StatusBadRequest)
+				return
+			}
+			h.keeper.UpdateGauge(m.ID, *m.Value)
+			g := h.keeper.GetGauge(m.ID)
+			m.Value = &g.Value
+		}
+		ctx.JSON(http.StatusOK, m)
 	}
-	return
-}
-
-func convertToFloat64(s string) (v float64, err error) {
-	v, err = strconv.ParseFloat(s, 64)
-	if err != nil {
-		return 0, err
-	}
-	return
 }

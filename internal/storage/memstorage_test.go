@@ -3,7 +3,7 @@ package storage
 import (
 	"testing"
 
-	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -95,7 +95,7 @@ func TestMemStorageGetGauge(t *testing.T) {
 	}
 }
 
-func TestMemStorageSetCounter(t *testing.T) {
+func TestMemStorageUpdateCounter(t *testing.T) {
 	type fields struct {
 		counters map[string]*metric.Counter
 		gauges   map[string]*metric.Gauge
@@ -107,13 +107,15 @@ func TestMemStorageSetCounter(t *testing.T) {
 		name   string
 		fields fields
 		args   args
+		want   *metric.Counter
 	}{
 		{
-			name: "Override value",
+			name: "Update value",
 			fields: fields{
 				counters: map[string]*metric.Counter{"c0": metric.NewCounter("c0", 10)},
 			},
 			args: args{m: metric.NewCounter("c0", 20)},
+			want: metric.NewCounter("c0", 30),
 		},
 		{
 			name: "New value",
@@ -121,6 +123,7 @@ func TestMemStorageSetCounter(t *testing.T) {
 				counters: map[string]*metric.Counter{},
 			},
 			args: args{m: metric.NewCounter("c0", 20)},
+			want: metric.NewCounter("c0", 20),
 		},
 	}
 	for _, tt := range tests {
@@ -129,14 +132,14 @@ func TestMemStorageSetCounter(t *testing.T) {
 				counters: tt.fields.counters,
 				gauges:   tt.fields.gauges,
 			}
-			ms.SetCounter(tt.args.m)
+			ms.UpdateCounter(tt.args.m.Name, tt.args.m.Value)
 			got := ms.GetCounter(tt.args.m.Name)
-			assert.Equal(t, tt.args.m, got)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestMemStorageSetGauge(t *testing.T) {
+func TestMemStorageUpdateGauge(t *testing.T) {
 	type fields struct {
 		counters map[string]*metric.Counter
 		gauges   map[string]*metric.Gauge
@@ -148,13 +151,15 @@ func TestMemStorageSetGauge(t *testing.T) {
 		name   string
 		fields fields
 		args   args
+		want   *metric.Gauge
 	}{
 		{
-			name: "Override value",
+			name: "Update value",
 			fields: fields{
 				gauges: map[string]*metric.Gauge{"c0": metric.NewGauge("c0", 10)},
 			},
 			args: args{m: metric.NewGauge("c0", 20)},
+			want: metric.NewGauge("c0", 20),
 		},
 		{
 			name: "New value",
@@ -162,6 +167,7 @@ func TestMemStorageSetGauge(t *testing.T) {
 				gauges: map[string]*metric.Gauge{},
 			},
 			args: args{m: metric.NewGauge("c0", 20)},
+			want: metric.NewGauge("c0", 20),
 		},
 	}
 	for _, tt := range tests {
@@ -170,7 +176,7 @@ func TestMemStorageSetGauge(t *testing.T) {
 				counters: tt.fields.counters,
 				gauges:   tt.fields.gauges,
 			}
-			ms.SetGauge(tt.args.m)
+			ms.UpdateGauge(tt.args.m.Name, tt.args.m.Value)
 			got := ms.GetGauge(tt.args.m.Name)
 			assert.Equal(t, tt.args.m, got)
 		})
@@ -183,13 +189,13 @@ func TestMemStorageSnapshot(t *testing.T) {
 		gauges   map[string]*metric.Gauge
 	}
 	type args struct {
-		snap *metric.Snapshot
+		snap *metric.Metrics
 	}
 	tests := []struct {
 		name   string
 		fields fields
 		args   args
-		want   *metric.Snapshot
+		want   *metric.Metrics
 	}{
 		{
 			name: "Snapshot #1",
@@ -197,8 +203,8 @@ func TestMemStorageSnapshot(t *testing.T) {
 				counters: map[string]*metric.Counter{"c0": metric.NewCounter("c0", 10), "c1": metric.NewCounter("c1", 23)},
 				gauges:   map[string]*metric.Gauge{"g1": metric.NewGauge("g1", 99.99)},
 			},
-			args: args{snap: &metric.Snapshot{}},
-			want: &metric.Snapshot{
+			args: args{snap: &metric.Metrics{}},
+			want: &metric.Metrics{
 				Counters: []*metric.Counter{metric.NewCounter("c0", 10), metric.NewCounter("c1", 23)},
 				Gauges:   []*metric.Gauge{metric.NewGauge("g1", 99.99)},
 			},

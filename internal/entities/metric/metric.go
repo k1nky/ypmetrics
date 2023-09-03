@@ -21,6 +21,12 @@ type Gauge struct {
 	Value float64
 }
 
+// Metrics списки метрики по типу
+type Metrics struct {
+	Counters []*Counter
+	Gauges   []*Gauge
+}
+
 // NewCounter возвращает новый счетчик
 func NewCounter(name string, initValue int64) *Counter {
 	return &Counter{
@@ -42,12 +48,12 @@ func (nm namedMetric) GetName() string {
 	return nm.Name
 }
 
-// String возвращает строковое предствление метрики в формате <тип><имя><значение>
+// String возвращает строковое значение счетчика
 func (c *Counter) String() string {
 	return fmt.Sprintf("%d", c.Value)
 }
 
-// String возвращает строковое предствление метрики в формате <тип><имя><значение>
+// String возвращает строковое предствление "измерителя"
 func (g *Gauge) String() string {
 	return fmt.Sprintf("%g", g.Value)
 }

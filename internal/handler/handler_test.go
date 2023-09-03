@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -8,15 +9,23 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/k1nky/ypmetrics/internal/metric"
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/storage"
+	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
 	"github.com/stretchr/testify/assert"
 )
+
+func newTestMetrics() storage.Storage {
+	ms := storage.NewMemStorage()
+	ms.UpdateCounter("c1", 10)
+	ms.UpdateGauge("g1", 10.10)
+	return ms
+}
 
 func TestTypeIsValid(t *testing.T) {
 	tests := []struct {
 		name string
-		tr   typeMetric
+		tr   metricType
 		want bool
 	}{
 		{
@@ -44,9 +53,11 @@ func TestTypeIsValid(t *testing.T) {
 	}
 }
 
-func TestUpdateHandler(t *testing.T) {
+func TestUpdate(t *testing.T) {
 	type want struct {
 		statusCode int
+		c          *metric.Counter
+		g          *metric.Gauge
 	}
 	tests := []struct {
 		name    string
@@ -54,10 +65,35 @@ func TestUpdateHandler(t *testing.T) {
 		want    want
 	}{
 		{
-			name:    "Update metric",
-			request: "/update/counter/counter0/10",
+			name:    "New counter",
+			request: "/update/counter/c0/10",
 			want: want{
 				statusCode: http.StatusOK,
+				c:          metric.NewCounter("c0", 10),
+			},
+		},
+		{
+			name:    "New gauge",
+			request: "/update/gauge/g0/10.10",
+			want: want{
+				statusCode: http.StatusOK,
+				g:          metric.NewGauge("g0", 10.10),
+			},
+		},
+		{
+			name:    "Update counter",
+			request: "/update/counter/c1/1",
+			want: want{
+				statusCode: http.StatusOK,
+				c:          metric.NewCounter("c1", 11),
+			},
+		},
+		{
+			name:    "Update gauge",
+			request: "/update/gauge/g1/10.99",
+			want: want{
+				statusCode: http.StatusOK,
+				g:          metric.NewGauge("g1", 10.99),
 			},
 		},
 		{
@@ -96,23 +132,149 @@ func TestUpdateHandler(t *testing.T) {
 			},
 		},
 	}
-	ms := metric.NewSet(storage.NewMemStorage())
+	gin.SetMode(gin.TestMode)
+	ms := newTestMetrics()
+	keeper := keeper.New(ms)
+	h := New(*keeper)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			gin.SetMode(gin.TestMode)
 			c, r := gin.CreateTestContext(w)
-			r.POST("/update/:type/:name/:value", UpdateHandler(*ms))
+			r.POST("/update/:type/:name/:value", h.Update())
 			c.Request = httptest.NewRequest(http.MethodPost, tt.request, nil)
 			r.ServeHTTP(w, c.Request)
 			result := w.Result()
 			defer result.Body.Close()
-			assert.Equal(t, tt.want.statusCode, result.StatusCode)
+			if !assert.Equal(t, tt.want.statusCode, result.StatusCode) {
+				return
+			}
+			if result.StatusCode != http.StatusOK {
+				return
+			}
+			if strings.Contains(tt.request, "/counter/") {
+				assert.Equal(t, tt.want.c, ms.GetCounter(tt.want.c.Name))
+			} else {
+				assert.Equal(t, tt.want.g, ms.GetGauge(tt.want.g.Name))
+			}
 		})
 	}
 }
 
-func TestValueHandler(t *testing.T) {
+func TestUpdateJSON(t *testing.T) {
+	type want struct {
+		statusCode int
+		body       string
+	}
+	tests := []struct {
+		name    string
+		request string
+		want    want
+	}{
+		{
+			name:    "New counter",
+			request: `{"id": "c0", "type": "counter", "delta": 10}`,
+			want: want{
+				statusCode: http.StatusOK,
+				body:       `{"id": "c0", "type": "counter", "delta": 10}`,
+			},
+		},
+		{
+			name:    "Update counter",
+			request: `{"id": "c1", "type": "counter", "delta": 1}`,
+			want: want{
+				statusCode: http.StatusOK,
+				body:       `{"id": "c1", "type": "counter", "delta": 11}`,
+			},
+		},
+		{
+			name:    "New gauge",
+			request: `{"id": "g0", "type": "gauge", "value": 0.1}`,
+			want: want{
+				statusCode: http.StatusOK,
+				body:       `{"id": "g0", "type": "gauge", "value": 0.1}`,
+			},
+		},
+		{
+			name:    "Update gauge",
+			request: `{"id": "g1", "type": "gauge", "value": 0.1}`,
+			want: want{
+				statusCode: http.StatusOK,
+				body:       `{"id": "g1", "type": "gauge", "value": 0.1}`,
+			},
+		},
+		{
+			name:    "Update counter without value",
+			request: `{"id": "c0", "type": "counter"}`,
+			want: want{
+				statusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name:    "Update gauge without value",
+			request: `{"id": "g0", "type": "gauge"}`,
+			want: want{
+				statusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name:    "Update metric without name",
+			request: `{"type": "gauge", "value": 0.1}`,
+			want: want{
+				statusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name:    "Update metric with empty name",
+			request: `{"id": "", "type": "gauge", "value": 0.1}`,
+			want: want{
+				statusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name:    "Update metric without type",
+			request: `{"id": "gauge0", "value": 0.1}`,
+			want: want{
+				statusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name:    "Update metric with invalid value",
+			request: `{"id": "g0", "type": "mygauge", "value": 0.1}`,
+			want: want{
+				statusCode: http.StatusBadRequest,
+			},
+		},
+	}
+
+	ms := newTestMetrics()
+	keeper := keeper.New(ms)
+	h := New(*keeper)
+	gin.SetMode(gin.TestMode)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, r := gin.CreateTestContext(w)
+			r.POST("/update/", h.UpdateJSON())
+			buf := bytes.NewBufferString(tt.request)
+			c.Request = httptest.NewRequest(http.MethodPost, "/update/", buf)
+			r.ServeHTTP(w, c.Request)
+			result := w.Result()
+			defer result.Body.Close()
+			assert.Equal(t, tt.want.statusCode, result.StatusCode)
+			if result.StatusCode != http.StatusOK {
+				return
+			}
+			resp := bytes.Buffer{}
+			if _, err := resp.ReadFrom(result.Body); !assert.NoError(t, err, "error while decoding") {
+				return
+			}
+			assert.JSONEq(t, tt.want.body, resp.String())
+		})
+	}
+}
+
+func TestValue(t *testing.T) {
 	type want struct {
 		statusCode int
 		value      string
@@ -124,34 +286,18 @@ func TestValueHandler(t *testing.T) {
 	}{
 		{
 			name:    "Counter",
-			request: "/value/counter/counter1",
+			request: "/value/counter/c1",
 			want: want{
 				statusCode: http.StatusOK,
 				value:      "10",
-			},
-		},
-		{
-			name:    "Updated counter",
-			request: "/value/counter/counter2",
-			want: want{
-				statusCode: http.StatusOK,
-				value:      "17",
 			},
 		},
 		{
 			name:    "Gauge",
-			request: "/value/gauge/gauge1",
+			request: "/value/gauge/g1",
 			want: want{
 				statusCode: http.StatusOK,
-				value:      "10",
-			},
-		},
-		{
-			name:    "Updated gauge",
-			request: "/value/gauge/gauge2",
-			want: want{
-				statusCode: http.StatusOK,
-				value:      "0.9999",
+				value:      "10.1",
 			},
 		},
 		{
@@ -164,7 +310,7 @@ func TestValueHandler(t *testing.T) {
 		},
 		{
 			name:    "Incompatible type",
-			request: "/value/gauge/counter1",
+			request: "/value/gauge/c1",
 			want: want{
 				statusCode: http.StatusNotFound,
 				value:      "",
@@ -174,58 +320,136 @@ func TestValueHandler(t *testing.T) {
 			name:    "Unsupported type",
 			request: "/value/summary/counter1",
 			want: want{
-				statusCode: http.StatusNotFound,
+				statusCode: http.StatusBadRequest,
 				value:      "",
 			},
 		},
 	}
 
-	ms := metric.NewSet(storage.NewMemStorage())
-	ms.UpdateCounter("counter1", 10)
-	ms.UpdateCounter("counter2", 10)
-	ms.UpdateCounter("counter2", 7)
-	ms.UpdateGauge("gauge1", 10)
-	ms.UpdateGauge("gauge2", 10.99)
-	ms.UpdateGauge("gauge2", 0.9999)
+	gin.SetMode(gin.TestMode)
+	ms := newTestMetrics()
+	keeper := keeper.New(ms)
+	h := New(*keeper)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, r := gin.CreateTestContext(w)
 			c.Request = httptest.NewRequest(http.MethodGet, tt.request, nil)
-			gin.SetMode(gin.TestMode)
-			r.GET("/value/:type/:name", ValueHandler(*ms))
+			r.GET("/value/:type/:name", h.Value())
 			r.ServeHTTP(w, c.Request)
 			result := w.Result()
 			defer result.Body.Close()
 			body, err := io.ReadAll(result.Body)
-			assert.NoError(t, err, "error while reading body")
-			assert.Equal(t, tt.want.statusCode, result.StatusCode)
+			if !assert.NoError(t, err, "error while reading body") {
+				return
+			}
+			if !assert.Equal(t, tt.want.statusCode, result.StatusCode) {
+				return
+			}
 			assert.Equal(t, tt.want.value, string(body))
 		})
 	}
 }
 
-func TestAllMetricsHandler(t *testing.T) {
-	ms := metric.NewSet(storage.NewMemStorage())
-	ms.UpdateCounter("counter1", 10)
-	ms.UpdateCounter("counter2", 20)
+func TestValueJSON(t *testing.T) {
 	type want struct {
 		statusCode int
 		value      string
 	}
 	tests := []struct {
-		name      string
-		metricset *metric.Set
-		want      want
+		name    string
+		request string
+		want    want
+	}{
+		{
+			name:    "Counter",
+			request: `{"id": "c1", "type": "counter"}`,
+			want: want{
+				statusCode: http.StatusOK,
+				value:      `{"id": "c1", "type": "counter", "delta": 10}`,
+			},
+		},
+		{
+			name:    "Gauge",
+			request: `{"id": "g1", "type": "gauge"}`,
+			want: want{
+				statusCode: http.StatusOK,
+				value:      `{"id": "g1", "type": "gauge", "value": 10.1}`,
+			},
+		},
+		{
+			name:    "Metric not exists",
+			request: `{"id": "g100", "type": "gauge"}`,
+			want: want{
+				statusCode: http.StatusNotFound,
+			},
+		},
+		{
+			name:    "Incompatible type",
+			request: `{"id": "g1", "type": "counter"}`,
+			want: want{
+				statusCode: http.StatusNotFound,
+			},
+		},
+		{
+			name:    "Unsupported type",
+			request: `{"id": "g1", "type": "summary"}`,
+			want: want{
+				statusCode: http.StatusBadRequest,
+			},
+		},
+	}
+
+	gin.SetMode(gin.TestMode)
+	ms := newTestMetrics()
+	keeper := keeper.New(ms)
+	h := New(*keeper)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, r := gin.CreateTestContext(w)
+			buf := bytes.NewBufferString(tt.request)
+			c.Request = httptest.NewRequest(http.MethodPost, "/value/", buf)
+			r.POST("/value/", h.ValueJSON())
+			r.ServeHTTP(w, c.Request)
+
+			result := w.Result()
+			defer result.Body.Close()
+			if !assert.Equal(t, tt.want.statusCode, result.StatusCode) {
+				return
+			}
+			if result.StatusCode != http.StatusOK {
+				return
+			}
+			assert.Contains(t, result.Header.Get("content-type"), "application/json")
+			resp := bytes.Buffer{}
+			if _, err := resp.ReadFrom(result.Body); !assert.NoError(t, err, "error while decoding") {
+				return
+			}
+			assert.JSONEq(t, tt.want.value, resp.String())
+		})
+	}
+}
+
+func TestAllMetrics(t *testing.T) {
+	type want struct {
+		statusCode int
+		value      string
+	}
+	tests := []struct {
+		name string
+		ms   storage.Storage
+		want want
 	}{
 		{
 			name: "With values",
 			want: want{
 				statusCode: http.StatusOK,
-				value:      "counter1 = 10\ncounter2 = 20\n",
+				value:      "c1 = 10\ng1 = 10.1\n",
 			},
-			metricset: ms,
+			ms: newTestMetrics(),
 		},
 		{
 			name: "Without values",
@@ -233,24 +457,30 @@ func TestAllMetricsHandler(t *testing.T) {
 				statusCode: http.StatusOK,
 				value:      "",
 			},
-			metricset: metric.NewSet(storage.NewMemStorage()),
+			ms: storage.NewMemStorage(),
 		},
 	}
 
+	gin.SetMode(gin.TestMode)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			gin.SetMode(gin.TestMode)
 			c, r := gin.CreateTestContext(w)
-			r.GET("/", AllMetricsHandler(*tt.metricset))
+			keeper := keeper.New(tt.ms)
+			h := New(*keeper)
+			r.GET("/", h.AllMetrics())
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 			r.ServeHTTP(w, c.Request)
 
 			result := w.Result()
 			defer result.Body.Close()
 			body, err := io.ReadAll(result.Body)
-			assert.NoError(t, err, "error while reading body")
-			assert.Equal(t, tt.want.statusCode, result.StatusCode)
+			if !assert.NoError(t, err, "error while reading body") {
+				return
+			}
+			if !assert.Equal(t, tt.want.statusCode, result.StatusCode) {
+				return
+			}
 			assert.ElementsMatch(t, strings.Split(tt.want.value, "\n"), strings.Split(string(body), "\n"))
 		})
 	}

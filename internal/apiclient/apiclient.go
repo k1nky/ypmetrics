@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/k1nky/ypmetrics/internal/protocol"
 )
 
 var (
@@ -28,22 +30,26 @@ func New(url string) *Client {
 	}
 	c := &Client{
 		EndpointURL: url,
-		httpclient:  resty.New(),
+		httpclient:  resty.New().SetTimeout(5 * time.Second),
 	}
 	return c
 }
 
+// newRequest это shortcut для создания нового запроса
+func (c *Client) newRequest() *resty.Request {
+	return c.httpclient.R().SetHeader("accept-encoding", "gzip")
+}
+
 // PushMetric отправляет метрику на сервер
 func (c *Client) PushMetric(typ, name, value string) (err error) {
-	req := c.httpclient.R()
-	req.Method = http.MethodPost
-	if url, err := url.JoinPath(c.EndpointURL, "update", typ, name, value); err != nil {
+	var (
+		requestURL string
+		resp       *resty.Response
+	)
+	if requestURL, err = url.JoinPath(c.EndpointURL, "update", typ, name, value); err != nil {
 		return err
-	} else {
-		req.URL = url
 	}
-	resp, err := req.Send()
-	if err != nil {
+	if resp, err = c.newRequest().SetHeader("Content-Type", "text/plain").Post(requestURL); err != nil {
 		return err
 	}
 	if resp.StatusCode() != http.StatusOK {
@@ -51,4 +57,56 @@ func (c *Client) PushMetric(typ, name, value string) (err error) {
 	}
 
 	return
+}
+
+// PushCounter отправляет счетчик на сервер в формате JSON
+func (c *Client) PushCounter(name string, value int64) (err error) {
+	var (
+		requestURL string
+		resp       *resty.Response
+	)
+
+	if requestURL, err = url.JoinPath(c.EndpointURL, "update/"); err != nil {
+		return
+	}
+	if resp, err = c.newRequest().
+		SetHeader("content-type", "application/json").
+		SetBody(protocol.Metrics{
+			ID:    name,
+			MType: "counter",
+			Delta: &value,
+		}).
+		Post(requestURL); err != nil {
+		return
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return ErrUnexpectedStatusCode
+	}
+	return nil
+}
+
+// PushGauge отправляет измеритель на сервер в формате JSON
+func (c *Client) PushGauge(name string, value float64) (err error) {
+	var (
+		requestURL string
+		resp       *resty.Response
+	)
+
+	if requestURL, err = url.JoinPath(c.EndpointURL, "update/"); err != nil {
+		return
+	}
+	if resp, err = c.newRequest().
+		SetHeader("content-type", "application/json").
+		SetBody(protocol.Metrics{
+			ID:    name,
+			MType: "gauge",
+			Value: &value,
+		}).
+		Post(requestURL); err != nil {
+		return
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return ErrUnexpectedStatusCode
+	}
+	return nil
 }
