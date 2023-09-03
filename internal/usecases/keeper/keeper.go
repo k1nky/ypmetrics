@@ -1,6 +1,8 @@
 package keeper
 
 import (
+	"context"
+
 	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/storage"
@@ -29,11 +31,11 @@ func New(store metricStorage, cfg config.KeeperConfig) *Keeper {
 }
 
 // Ping проверяет подключение к базе данных.
-func (k *Keeper) Ping() error {
+func (k *Keeper) Ping(ctx context.Context) error {
 	db := storage.NewDBStorage()
 	if err := db.Open("pgx", k.config.DatabaseDSN); err != nil {
 		return err
 	}
 	defer db.Close()
-	return db.Ping()
+	return db.PingContext(ctx)
 }

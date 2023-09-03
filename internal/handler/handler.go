@@ -2,10 +2,12 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
@@ -169,10 +171,12 @@ func (h Handler) UpdateJSON() gin.HandlerFunc {
 // Обработчки проверки подключения к БД
 func (h Handler) Ping() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		if err := h.keeper.Ping(); err == nil {
-			ctx.Status(http.StatusOK)
-		} else {
+		c, cancel := context.WithTimeout(ctx.Request.Context(), time.Second)
+		defer cancel()
+		if err := h.keeper.Ping(c); err != nil {
 			ctx.Status(http.StatusInternalServerError)
+		} else {
+			ctx.Status(http.StatusOK)
 		}
 	}
 }
