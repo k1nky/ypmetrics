@@ -63,7 +63,7 @@ func Run(l *logger.Logger, cfg config.KeeperConfig) {
 	}
 
 	defer store.Close()
-	uc := keeper.New(store)
+	uc := keeper.New(store, cfg)
 	h := handler.New(*uc)
 	router := newRouter(h, l)
 
@@ -79,6 +79,7 @@ func newRouter(h handler.Handler, l *logger.Logger) *gin.Engine {
 	router.Use(middleware.Logger(l), middleware.NewGzip([]string{"application/json", "text/html"}).Use())
 
 	router.GET("/", h.AllMetrics())
+	router.GET("/ping", h.Ping())
 
 	valueRoutes := router.Group("/value")
 	valueRoutes.POST("/", middleware.RequireContentType("application/json"), h.ValueJSON())

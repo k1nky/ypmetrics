@@ -91,3 +91,14 @@ autotest9: buildserver buildagent
 	-file-storage-path=/tmp/123 \
 	-server-port=8080 \
 	-source-path=. \
+
+autotest10: buildserver buildagent rundb
+	SERVER_PORT=8080 ADDRESS="localhost:8080" TEMP_FILE="/tmp/123" metricstest -test.v -test.run=^TestIteration10[AB]$$ \
+	-agent-binary-path=cmd/agent/agent \
+	-binary-path=cmd/server/server \
+	-database-dsn='postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable' \
+	-server-port=8080 \
+	-source-path=.
+
+rundb:
+	docker compose up -d

@@ -165,3 +165,14 @@ func (h Handler) UpdateJSON() gin.HandlerFunc {
 		ctx.JSON(http.StatusOK, m)
 	}
 }
+
+// Обработчки проверки подключения к БД
+func (h Handler) Ping() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		if err := h.keeper.Ping(); err == nil {
+			ctx.Status(http.StatusOK)
+		} else {
+			ctx.Status(http.StatusInternalServerError)
+		}
+	}
+}

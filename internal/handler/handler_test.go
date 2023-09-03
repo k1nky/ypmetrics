@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang/mock/gomock"
+	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/k1nky/ypmetrics/internal/storage/mock"
@@ -119,7 +120,7 @@ func TestUpdate(t *testing.T) {
 	store.EXPECT().UpdateCounter(gomock.Any(), gomock.Any())
 	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any())
 
-	keeper := keeper.New(store)
+	keeper := keeper.New(store, config.KeeperConfig{})
 	h := New(*keeper)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -222,7 +223,7 @@ func TestUpdateJSON(t *testing.T) {
 	store.EXPECT().UpdateCounter(gomock.Any(), gomock.Any())
 	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any())
 
-	keeper := keeper.New(store)
+	keeper := keeper.New(store, config.KeeperConfig{})
 	h := New(*keeper)
 	gin.SetMode(gin.TestMode)
 
@@ -322,7 +323,7 @@ func TestValue(t *testing.T) {
 			case "g100":
 				store.EXPECT().GetGauge("g100").Return(nil)
 			}
-			keeper := keeper.New(store)
+			keeper := keeper.New(store, config.KeeperConfig{})
 			h := New(*keeper)
 
 			w := httptest.NewRecorder()
@@ -414,7 +415,7 @@ func TestValueJSON(t *testing.T) {
 			case "g100":
 				store.EXPECT().GetGauge("g100").Return(nil)
 			}
-			keeper := keeper.New(store)
+			keeper := keeper.New(store, config.KeeperConfig{})
 			h := New(*keeper)
 
 			w := httptest.NewRecorder()
@@ -483,7 +484,7 @@ func TestAllMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, r := gin.CreateTestContext(w)
-			keeper := keeper.New(tt.ms)
+			keeper := keeper.New(tt.ms, config.KeeperConfig{})
 			h := New(*keeper)
 			r.GET("/", h.AllMetrics())
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
