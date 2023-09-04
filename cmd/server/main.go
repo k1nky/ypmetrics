@@ -35,6 +35,9 @@ func parseConfig() (config.KeeperConfig, error) {
 
 func openStorage(cfg config.KeeperConfig, log *logger.Logger) (metricStorage, error) {
 	switch {
+	case len(cfg.DatabaseDSN) > 0:
+		s := storage.NewDBStorage(log)
+		return s, s.Open(cfg.DatabaseDSN)
 	case cfg.StoreIntervalInSec == 0:
 		s := storage.NewSyncFileStorage(log)
 		return s, s.Open(cfg.FileStoragePath, cfg.Restore)
@@ -63,7 +66,7 @@ func Run(l *logger.Logger, cfg config.KeeperConfig) {
 	}
 
 	defer store.Close()
-	uc := keeper.New(store, cfg)
+	uc := keeper.New(store, cfg, l)
 	h := handler.New(*uc)
 	router := newRouter(h, l)
 

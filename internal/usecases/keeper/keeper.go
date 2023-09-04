@@ -16,24 +16,30 @@ type metricStorage interface {
 	Snapshot(*metric.Metrics)
 }
 
+type logger interface {
+	Error(template string, args ...interface{})
+}
+
 // Keeper представляет собой набор метрик. В текущей реализации представляет
 // функционал storage.Storage.
 type Keeper struct {
 	metricStorage
 	config config.KeeperConfig
+	logger logger
 }
 
-func New(store metricStorage, cfg config.KeeperConfig) *Keeper {
+func New(store metricStorage, cfg config.KeeperConfig, logger logger) *Keeper {
 	return &Keeper{
 		metricStorage: store,
 		config:        cfg,
+		logger:        logger,
 	}
 }
 
 // Ping проверяет подключение к базе данных.
 func (k *Keeper) Ping(ctx context.Context) error {
-	db := storage.NewDBStorage()
-	if err := db.Open("pgx", k.config.DatabaseDSN); err != nil {
+	db := storage.NewDBStorage(k.logger)
+	if err := db.Open(k.config.DatabaseDSN); err != nil {
 		return err
 	}
 	defer db.Close()

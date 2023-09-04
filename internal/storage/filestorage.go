@@ -145,7 +145,9 @@ func (afs *AsyncFileStorage) Open(filename string, restore bool, flushInterval t
 		return err
 	}
 	if err := afs.Restore(f); err != nil {
-		afs.logger.Error("Open: %v", err)
+		if !os.IsNotExist(err) {
+			afs.logger.Error("Open: %v", err)
+		}
 	}
 	go func() {
 		t := time.NewTicker(flushInterval)
@@ -171,7 +173,9 @@ func (sfs *SyncFileStorage) Open(filename string, restore bool) error {
 		return err
 	}
 	if err := sfs.Restore(f); err != nil {
-		sfs.logger.Error("Open: %v", err)
+		if !os.IsNotExist(err) {
+			sfs.logger.Error("Open: %v", err)
+		}
 	}
 	sfs.writer = f
 	return nil

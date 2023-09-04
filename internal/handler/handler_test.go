@@ -18,6 +18,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type blackholeLogger struct{}
+
+func (bh *blackholeLogger) Error(template string, args ...interface{}) {}
+
 func TestTypeIsValid(t *testing.T) {
 	tests := []struct {
 		name string
@@ -120,7 +124,7 @@ func TestUpdate(t *testing.T) {
 	store.EXPECT().UpdateCounter(gomock.Any(), gomock.Any())
 	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any())
 
-	keeper := keeper.New(store, config.KeeperConfig{})
+	keeper := keeper.New(store, config.KeeperConfig{}, &blackholeLogger{})
 	h := New(*keeper)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -223,7 +227,7 @@ func TestUpdateJSON(t *testing.T) {
 	store.EXPECT().UpdateCounter(gomock.Any(), gomock.Any())
 	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any())
 
-	keeper := keeper.New(store, config.KeeperConfig{})
+	keeper := keeper.New(store, config.KeeperConfig{}, &blackholeLogger{})
 	h := New(*keeper)
 	gin.SetMode(gin.TestMode)
 
@@ -323,7 +327,7 @@ func TestValue(t *testing.T) {
 			case "g100":
 				store.EXPECT().GetGauge("g100").Return(nil)
 			}
-			keeper := keeper.New(store, config.KeeperConfig{})
+			keeper := keeper.New(store, config.KeeperConfig{}, &blackholeLogger{})
 			h := New(*keeper)
 
 			w := httptest.NewRecorder()
@@ -415,7 +419,7 @@ func TestValueJSON(t *testing.T) {
 			case "g100":
 				store.EXPECT().GetGauge("g100").Return(nil)
 			}
-			keeper := keeper.New(store, config.KeeperConfig{})
+			keeper := keeper.New(store, config.KeeperConfig{}, &blackholeLogger{})
 			h := New(*keeper)
 
 			w := httptest.NewRecorder()
@@ -484,7 +488,7 @@ func TestAllMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, r := gin.CreateTestContext(w)
-			keeper := keeper.New(tt.ms, config.KeeperConfig{})
+			keeper := keeper.New(tt.ms, config.KeeperConfig{}, &blackholeLogger{})
 			h := New(*keeper)
 			r.GET("/", h.AllMetrics())
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
