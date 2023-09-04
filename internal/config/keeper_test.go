@@ -22,7 +22,7 @@ func TestParseFlags(t *testing.T) {
 			want: KeeperConfig{
 				Address:            "localhost:8080",
 				StoreIntervalInSec: DefStoreIntervalInSec,
-				FileStoragePath:    DefFileStoragePath,
+				FileStoragePath:    "",
 				Restore:            true,
 				DatabaseDSN:        "",
 			},
@@ -67,7 +67,7 @@ func TestParseFlags(t *testing.T) {
 			want: KeeperConfig{
 				Address:            "127.0.0.1:9000",
 				StoreIntervalInSec: 11,
-				FileStoragePath:    DefFileStoragePath,
+				FileStoragePath:    "",
 				Restore:            true,
 				DatabaseDSN:        "postgres://localhost:5432/praktikum",
 			},

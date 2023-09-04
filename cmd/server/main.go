@@ -6,22 +6,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/k1nky/ypmetrics/internal/config"
-	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/handler"
 	"github.com/k1nky/ypmetrics/internal/handler/middleware"
 	"github.com/k1nky/ypmetrics/internal/logger"
-	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
 )
-
-type metricStorage interface {
-	GetCounter(name string) *metric.Counter
-	GetGauge(name string) *metric.Gauge
-	UpdateCounter(name string, value int64)
-	UpdateGauge(name string, value float64)
-	Snapshot(*metric.Metrics)
-	Close() error
-}
 
 func init() {
 	gin.SetMode(gin.ReleaseMode)
@@ -31,22 +20,6 @@ func parseConfig() (config.KeeperConfig, error) {
 	cfg := config.KeeperConfig{}
 	err := config.ParseKeeperConfig(&cfg)
 	return cfg, err
-}
-
-func openStorage(cfg config.KeeperConfig, log *logger.Logger) (metricStorage, error) {
-	switch {
-	case len(cfg.DatabaseDSN) > 0:
-		s := storage.NewDBStorage(log)
-		return s, s.Open(cfg.DatabaseDSN)
-	case cfg.StoreIntervalInSec == 0:
-		s := storage.NewSyncFileStorage(log)
-		return s, s.Open(cfg.FileStoragePath, cfg.Restore)
-	case cfg.StoreIntervalInSec > 0:
-		s := storage.NewAsyncFileStorage(log)
-		return s, s.Open(cfg.FileStoragePath, cfg.Restore, cfg.StorageInterval())
-	default:
-		return storage.NewMemStorage(), nil
-	}
 }
 
 func main() {
@@ -74,7 +47,6 @@ func Run(l *logger.Logger, cfg config.KeeperConfig) {
 	if err := http.ListenAndServe(cfg.Address.String(), router); err != nil {
 		panic(err)
 	}
-
 }
 
 func newRouter(h handler.Handler, l *logger.Logger) *gin.Engine {

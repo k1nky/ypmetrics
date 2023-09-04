@@ -21,7 +21,6 @@ type KeeperConfig struct {
 
 const (
 	DefStoreIntervalInSec = 300
-	DefFileStoragePath    = "/tmp/metrics-db.json"
 )
 
 func (cfg KeeperConfig) StorageInterval() time.Duration {
@@ -34,7 +33,7 @@ func parseKeeperConfigFromCmd(c *KeeperConfig) error {
 	address := NetAddress("localhost:8080")
 	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
 	storeInterval := cmd.UintP("store-interval", "i", DefStoreIntervalInSec, "интервал времени в секундах, по истечении которого текущие показания сервера сохраняются на диск (по умолчанию 300 секунд, значение 0 делает запись синхронной).")
-	storagePath := cmd.StringP("storage-path", "f", DefFileStoragePath, "полное имя файла, куда сохраняются текущие значения")
+	storagePath := cmd.StringP("storage-path", "f", "", "полное имя файла, куда сохраняются текущие значения")
 	// для аргумента --restore запрашиваем сначала значение как строку, а потом уже конверитруем в bool
 	// это связано с тем, что формат передачи bool аргументов отличается от требуемого
 	// https://github.com/spf13/pflag/issues/288

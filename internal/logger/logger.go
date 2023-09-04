@@ -20,7 +20,7 @@ func New() *Logger {
 		DisableCaller:     true,
 		DisableStacktrace: false,
 		Sampling:          nil,
-		Encoding:          "json",
+		Encoding:          "console",
 		EncoderConfig:     encoderConfig,
 		OutputPaths: []string{
 			"stderr",
