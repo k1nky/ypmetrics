@@ -8,13 +8,10 @@ import (
 	"testing"
 
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
+	"github.com/k1nky/ypmetrics/internal/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
-
-type blackholeLogger struct{}
-
-func (bh *blackholeLogger) Error(template string, args ...interface{}) {}
 
 func newTestCounters() map[string]*metric.Counter {
 	return map[string]*metric.Counter{
@@ -55,7 +52,7 @@ func assertMetricsJSONEq(t assert.TestingT, expected string, actual string) {
 }
 
 func (suite *fileStorageTestSuite) SetupTest() {
-	suite.logger = &blackholeLogger{}
+	suite.logger = &logger.Blackhole{}
 	suite.fs = NewFileStorage(suite.logger)
 	suite.fs.counters = newTestCounters()
 	suite.fs.gauges = newTestGauges()

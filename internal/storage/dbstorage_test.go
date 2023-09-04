@@ -2,11 +2,13 @@ package storage
 
 import (
 	"testing"
+
+	"github.com/k1nky/ypmetrics/internal/logger"
 )
 
 func TestDBStorage(t *testing.T) {
 	t.SkipNow()
-	blackholeLogger := &blackholeLogger{}
+	blackholeLogger := &logger.Blackhole{}
 	db := NewDBStorage(blackholeLogger)
 	if err := db.Open("postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable"); err != nil {
 		t.Log(err)
