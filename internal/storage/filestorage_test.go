@@ -30,8 +30,7 @@ func newTestGauges() map[string]*metric.Gauge {
 
 type fileStorageTestSuite struct {
 	suite.Suite
-	logger storageLogger
-	fs     *FileStorage
+	fs *FileStorage
 }
 
 func assertMetricsJSONEq(t assert.TestingT, expected string, actual string) {
@@ -53,8 +52,7 @@ func assertMetricsJSONEq(t assert.TestingT, expected string, actual string) {
 }
 
 func (suite *fileStorageTestSuite) SetupTest() {
-	suite.logger = &logger.Blackhole{}
-	suite.fs = NewFileStorage(suite.logger)
+	suite.fs = NewFileStorage(&logger.Blackhole{})
 	suite.fs.counters = newTestCounters()
 	suite.fs.gauges = newTestGauges()
 }

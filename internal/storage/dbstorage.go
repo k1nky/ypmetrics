@@ -8,6 +8,10 @@ import (
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
 
+const (
+	MaxKeepaliveDBConnections = 10
+)
+
 // Хранилище метрик в базе данных
 type DBStorage struct {
 	*sql.DB
@@ -20,15 +24,26 @@ func NewDBStorage(logger storageLogger) *DBStorage {
 	}
 }
 
+// Open открывает подключение к базе данных. Если БД недоступна возвращает ошибку.
+// При необходимости выполняет инициализацию базы данных.
 func (dbs *DBStorage) Open(dataSourceName string) (err error) {
 	dbs.DB, err = sql.Open("pgx", dataSourceName)
 	if err != nil {
 		return err
 	}
-	return dbs.Init()
+
+	dbs.SetMaxOpenConns(MaxKeepaliveDBConnections)
+	dbs.SetMaxIdleConns(MaxKeepaliveDBConnections)
+
+	if err := dbs.Ping(); err != nil {
+		return err
+	}
+
+	return dbs.Initialize()
 }
 
-func (dbs *DBStorage) Init() error {
+// Initialize создает схему базы данных
+func (dbs *DBStorage) Initialize() error {
 	tx, err := dbs.Begin()
 	if err != nil {
 		return err
@@ -51,6 +66,8 @@ func (dbs *DBStorage) Init() error {
 	return tx.Commit()
 }
 
+// GetCounter возвращает метрику Counter по имени name.
+// Будет возвращен nil, если метрика не найдена
 func (dbs *DBStorage) GetCounter(ctx context.Context, name string) *metric.Counter {
 	m := metric.NewCounter(name, 0)
 	row := dbs.QueryRowContext(ctx, `SELECT value FROM counter WHERE name=$1`, name)
@@ -67,6 +84,8 @@ func (dbs *DBStorage) GetCounter(ctx context.Context, name string) *metric.Count
 	return m
 }
 
+// GetGauge возвращает метрику Gauge по имени name.
+// Будет возвращен nil, если метрика не найдена
 func (dbs *DBStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 	m := metric.NewGauge(name, 0)
 	row := dbs.QueryRowContext(ctx, `SELECT value FROM gauge WHERE name=$1`, name)
@@ -83,6 +102,7 @@ func (dbs *DBStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 	return m
 }
 
+// UpdateCounter обновляет метрику Counter в базе данных
 func (dbs *DBStorage) UpdateCounter(ctx context.Context, name string, value int64) {
 	if _, err := dbs.ExecContext(ctx, `
 		INSERT INTO counter as c (name, value)
@@ -94,6 +114,7 @@ func (dbs *DBStorage) UpdateCounter(ctx context.Context, name string, value int6
 	}
 }
 
+// UpdateGauge обновляет метрику Gauge в базе данных
 func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float64) {
 	if _, err := dbs.ExecContext(ctx, `
 		INSERT INTO gauge (name, value)
@@ -105,7 +126,9 @@ func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float6
 	}
 }
 
+// UpdateMetrics выполняет множественно обнволение метрик. Обновление выполняется в транзакции.
 func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) {
+	// вспомогательная функция, которую вызываем при ошибке
 	fail := func(err error) {
 		dbs.logger.Error("UpdateMetrics: %v", err)
 	}
@@ -115,6 +138,7 @@ func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics)
 		fail(err)
 		return
 	}
+	// всегда откатываем изменения, если не выполнился явный Commit
 	defer tx.Rollback()
 	if len(metrics.Counters) > 0 {
 		stmt, err := tx.PrepareContext(ctx, `
@@ -159,6 +183,7 @@ func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics)
 	}
 }
 
+// Snapshot создает снимок метрик из базы данных
 func (dbs *DBStorage) Snapshot(ctx context.Context, metrics *metric.Metrics) {
 
 	if metrics == nil {
