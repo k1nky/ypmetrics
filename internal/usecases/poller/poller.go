@@ -57,9 +57,29 @@ func (a *Poller) AddCollector(collectors ...Collector) {
 	a.collectors = append(a.collectors, collectors...)
 }
 
+func (a Poller) poll(ctx context.Context) {
+	for _, collector := range a.collectors {
+		a.logger.Debug("start polling %T", collector)
+		m, err := collector.Collect()
+		if err != nil {
+			a.logger.Error("collector %T: %s", collector, err)
+			continue
+		}
+		if len(m.Counters) != 0 {
+			for _, c := range m.Counters {
+				a.storage.UpdateCounter(ctx, c.Name, c.Value)
+			}
+		}
+		if len(m.Gauges) != 0 {
+			for _, g := range m.Gauges {
+				a.storage.UpdateGauge(ctx, g.Name, g.Value)
+			}
+		}
+	}
+}
+
 // Run запускает Poller
 func (a Poller) Run(ctx context.Context) {
-
 	var wg sync.WaitGroup
 
 	wg.Add(1)
@@ -72,8 +92,7 @@ func (a Poller) Run(ctx context.Context) {
 				a.logger.Debug("stop reporting")
 				return
 			case <-t.C:
-				a.logger.Debug("sending updates")
-				if err := a.report(); err != nil {
+				if err := a.sendReport(); err != nil {
 					a.logger.Error("report error: %s", err)
 				}
 			}
@@ -89,31 +108,15 @@ func (a Poller) Run(ctx context.Context) {
 				a.logger.Debug("stop polling")
 				return
 			case <-t.C:
-				for _, collector := range a.collectors {
-					a.logger.Debug("start polling %T", collector)
-					m, err := collector.Collect()
-					if err != nil {
-						a.logger.Error("collector %T: %s", collector, err)
-						continue
-					}
-					if len(m.Counters) != 0 {
-						for _, c := range m.Counters {
-							a.storage.UpdateCounter(ctx, c.Name, c.Value)
-						}
-					}
-					if len(m.Gauges) != 0 {
-						for _, g := range m.Gauges {
-							a.storage.UpdateGauge(ctx, g.Name, g.Value)
-						}
-					}
-				}
+				a.poll(ctx)
 			}
 		}
 	}()
+
 	wg.Wait()
 }
 
-func (a Poller) report() error {
+func (a Poller) sendReport() error {
 	snap := &metric.Metrics{}
 	ctx := context.Background()
 	a.storage.Snapshot(ctx, snap)
