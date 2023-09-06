@@ -119,14 +119,20 @@ func (h Handler) Update() gin.HandlerFunc {
 				ctx.Status(http.StatusBadRequest)
 				return
 			} else {
-				h.keeper.UpdateCounter(ctx.Request.Context(), ctx.Param("name"), v)
+				if err := h.keeper.UpdateCounter(ctx.Request.Context(), ctx.Param("name"), v); err != nil {
+					ctx.Status(http.StatusInternalServerError)
+					return
+				}
 			}
 		case TypeGauge:
 			if v, err := convertToFloat64(ctx.Param("value")); err != nil {
 				ctx.Status(http.StatusBadRequest)
 				return
 			} else {
-				h.keeper.UpdateGauge(ctx.Request.Context(), ctx.Param("name"), v)
+				if err := h.keeper.UpdateGauge(ctx.Request.Context(), ctx.Param("name"), v); err != nil {
+					ctx.Status(http.StatusInternalServerError)
+					return
+				}
 			}
 		}
 		ctx.Status(http.StatusOK)
@@ -152,7 +158,10 @@ func (h Handler) UpdateJSON() gin.HandlerFunc {
 				ctx.Status(http.StatusBadRequest)
 				return
 			}
-			h.keeper.UpdateCounter(ctx.Request.Context(), m.ID, *m.Delta)
+			if err := h.keeper.UpdateCounter(ctx.Request.Context(), m.ID, *m.Delta); err != nil {
+				ctx.Status(http.StatusInternalServerError)
+				return
+			}
 			c := h.keeper.GetCounter(ctx.Request.Context(), m.ID)
 			m.Delta = &c.Value
 		case TypeGauge:
@@ -160,7 +169,10 @@ func (h Handler) UpdateJSON() gin.HandlerFunc {
 				ctx.Status(http.StatusBadRequest)
 				return
 			}
-			h.keeper.UpdateGauge(ctx.Request.Context(), m.ID, *m.Value)
+			if err := h.keeper.UpdateGauge(ctx.Request.Context(), m.ID, *m.Value); err != nil {
+				ctx.Status(http.StatusInternalServerError)
+				return
+			}
 			g := h.keeper.GetGauge(ctx.Request.Context(), m.ID)
 			m.Value = &g.Value
 		}
@@ -178,5 +190,29 @@ func (h Handler) Ping() gin.HandlerFunc {
 		} else {
 			ctx.Status(http.StatusOK)
 		}
+	}
+}
+
+func (h Handler) UpdatesJSON() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		recievedMetrics := make([]protocol.Metrics, 0, 10)
+		if err := json.NewDecoder(ctx.Request.Body).Decode(&recievedMetrics); err != nil {
+			ctx.Status(http.StatusBadRequest)
+			return
+		}
+		metrics := metric.NewMetrics()
+		for _, m := range recievedMetrics {
+			switch metricType(m.MType) {
+			case TypeCounter:
+				metrics.Counters = append(metrics.Counters, metric.NewCounter(m.ID, *m.Delta))
+			case TypeGauge:
+				metrics.Gauges = append(metrics.Gauges, metric.NewGauge(m.ID, *m.Value))
+			}
+		}
+		if err := h.keeper.UpdateMetrics(ctx.Request.Context(), *metrics); err != nil {
+			ctx.Status(http.StatusInternalServerError)
+			return
+		}
+		ctx.Status(http.StatusOK)
 	}
 }

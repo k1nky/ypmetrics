@@ -11,10 +11,10 @@ import (
 type metricStorage interface {
 	GetCounter(ctx context.Context, name string) *metric.Counter
 	GetGauge(ctx context.Context, name string) *metric.Gauge
-	UpdateCounter(ctx context.Context, name string, value int64)
-	UpdateGauge(ctx context.Context, name string, value float64)
-	UpdateMetrics(ctx context.Context, metrics metric.Metrics)
-	Snapshot(ctx context.Context, metrics *metric.Metrics)
+	UpdateCounter(ctx context.Context, name string, value int64) error
+	UpdateGauge(ctx context.Context, name string, value float64) error
+	UpdateMetrics(ctx context.Context, metrics metric.Metrics) error
+	Snapshot(ctx context.Context, metrics *metric.Metrics) error
 }
 
 type logger interface {

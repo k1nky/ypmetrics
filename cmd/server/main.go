@@ -55,6 +55,7 @@ func newRouter(h handler.Handler, l *logger.Logger) *gin.Engine {
 
 	router.GET("/", h.AllMetrics())
 	router.GET("/ping", h.Ping())
+	router.POST("/updates/", middleware.RequireContentType("application/json"), h.UpdatesJSON())
 
 	valueRoutes := router.Group("/value")
 	valueRoutes.POST("/", middleware.RequireContentType("application/json"), h.ValueJSON())

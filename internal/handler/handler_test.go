@@ -503,3 +503,47 @@ func TestAllMetrics(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdatesJSON(t *testing.T) {
+	type want struct {
+		statusCode int
+	}
+	tests := []struct {
+		name    string
+		request string
+		want    want
+	}{
+		{
+			name:    "Updates",
+			request: `[{"id": "c0", "type": "counter", "delta": 11}, {"id": "g0", "type": "gauge", "value": 1.1}]`,
+			want: want{
+				statusCode: http.StatusOK,
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	store := mock.NewMockStorage(ctrl)
+	store.EXPECT().UpdateMetrics(gomock.Any(), gomock.Any()).Return(nil)
+
+	keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
+	h := New(*keeper)
+	gin.SetMode(gin.TestMode)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, r := gin.CreateTestContext(w)
+			r.POST("/updates/", h.UpdatesJSON())
+			buf := bytes.NewBufferString(tt.request)
+			c.Request = httptest.NewRequest(http.MethodPost, "/updates/", buf)
+			r.ServeHTTP(w, c.Request)
+			result := w.Result()
+			defer result.Body.Close()
+			assert.Equal(t, tt.want.statusCode, result.StatusCode)
+			if result.StatusCode != http.StatusOK {
+				return
+			}
+		})
+	}
+}

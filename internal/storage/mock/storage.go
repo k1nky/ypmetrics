@@ -118,9 +118,11 @@ func (mr *MockStorageMockRecorder) GetGauge(ctx, name interface{}) *gomock.Call 
 }
 
 // Snapshot mocks base method.
-func (m *MockStorage) Snapshot(ctx context.Context, metrics *metric.Metrics) {
+func (m *MockStorage) Snapshot(ctx context.Context, metrics *metric.Metrics) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Snapshot", ctx, metrics)
+	ret := m.ctrl.Call(m, "Snapshot", ctx, metrics)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Snapshot indicates an expected call of Snapshot.
@@ -130,9 +132,11 @@ func (mr *MockStorageMockRecorder) Snapshot(ctx, metrics interface{}) *gomock.Ca
 }
 
 // UpdateCounter mocks base method.
-func (m *MockStorage) UpdateCounter(ctx context.Context, name string, value int64) {
+func (m *MockStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpdateCounter", ctx, name, value)
+	ret := m.ctrl.Call(m, "UpdateCounter", ctx, name, value)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // UpdateCounter indicates an expected call of UpdateCounter.
@@ -142,9 +146,11 @@ func (mr *MockStorageMockRecorder) UpdateCounter(ctx, name, value interface{}) *
 }
 
 // UpdateGauge mocks base method.
-func (m *MockStorage) UpdateGauge(ctx context.Context, name string, value float64) {
+func (m *MockStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpdateGauge", ctx, name, value)
+	ret := m.ctrl.Call(m, "UpdateGauge", ctx, name, value)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // UpdateGauge indicates an expected call of UpdateGauge.
@@ -154,9 +160,11 @@ func (mr *MockStorageMockRecorder) UpdateGauge(ctx, name, value interface{}) *go
 }
 
 // UpdateMetrics mocks base method.
-func (m *MockStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) {
+func (m *MockStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpdateMetrics", ctx, metrics)
+	ret := m.ctrl.Call(m, "UpdateMetrics", ctx, metrics)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // UpdateMetrics indicates an expected call of UpdateMetrics.

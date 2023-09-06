@@ -48,7 +48,7 @@ func (ms *MemStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 }
 
 // UpdateCounter сохраняет метрику Counter в хранилище
-func (ms *MemStorage) UpdateCounter(ctx context.Context, name string, value int64) {
+func (ms *MemStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
 	c := ms.GetCounter(ctx, name)
 
 	ms.countersLock.Lock()
@@ -61,20 +61,22 @@ func (ms *MemStorage) UpdateCounter(ctx context.Context, name string, value int6
 	}
 
 	ms.counters[name] = c
+	return nil
 }
 
 // UpdateMetrics сохраняет метрики в хранилище
-func (ms *MemStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) {
+func (ms *MemStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
 	for _, m := range metrics.Counters {
 		ms.UpdateCounter(ctx, m.Name, m.Value)
 	}
 	for _, m := range metrics.Gauges {
 		ms.UpdateGauge(ctx, m.Name, m.Value)
 	}
+	return nil
 }
 
 // UpdateGauge сохраняет метрику Gauge в хранилище
-func (ms *MemStorage) UpdateGauge(ctx context.Context, name string, value float64) {
+func (ms *MemStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
 	g := ms.GetGauge(ctx, name)
 
 	ms.gaugesLock.Lock()
@@ -87,13 +89,15 @@ func (ms *MemStorage) UpdateGauge(ctx context.Context, name string, value float6
 	}
 
 	ms.gauges[name] = g
+
+	return nil
 }
 
 // Snapshot создает снимок метрик из хранилища
-func (ms *MemStorage) Snapshot(ctx context.Context, snap *metric.Metrics) {
+func (ms *MemStorage) Snapshot(ctx context.Context, snap *metric.Metrics) error {
 
 	if snap == nil {
-		return
+		return nil
 	}
 
 	snap.Counters = make([]*metric.Counter, 0, len(ms.counters))
@@ -110,6 +114,8 @@ func (ms *MemStorage) Snapshot(ctx context.Context, snap *metric.Metrics) {
 	for _, v := range ms.gauges {
 		snap.Gauges = append(snap.Gauges, metric.NewGauge(v.Name, v.Value))
 	}
+
+	return nil
 }
 
 func (ms *MemStorage) Close() error {

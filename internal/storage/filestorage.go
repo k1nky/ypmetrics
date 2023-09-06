@@ -184,17 +184,24 @@ func (sfs *SyncFileStorage) Open(filename string, restore bool) error {
 }
 
 // SetCounter записывает значение метрики типа Counter и сохраняет изменения в файл.
-func (sfs *SyncFileStorage) UpdateCounter(ctx context.Context, name string, value int64) {
-	sfs.MemStorage.UpdateCounter(ctx, name, value)
+func (sfs *SyncFileStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
+	if err := sfs.MemStorage.UpdateCounter(ctx, name, value); err != nil {
+		return err
+	}
 	if err := sfs.WriteToFile(sfs.writer); err != nil {
 		sfs.logger.Error("SetCounter: %v", err)
+		return err
 	}
+	return nil
 }
 
 // SetGauge записывает значение метрики типа Gauge и сохраняет изменения в файл.
-func (sfs *SyncFileStorage) UpdateGauge(ctx context.Context, name string, value float64) {
-	sfs.MemStorage.UpdateGauge(ctx, name, value)
+func (sfs *SyncFileStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
+	if err := sfs.MemStorage.UpdateGauge(ctx, name, value); err != nil {
+		return err
+	}
 	if err := sfs.WriteToFile(sfs.writer); err != nil {
 		sfs.logger.Error("SetGauge: %v", err)
 	}
+	return nil
 }

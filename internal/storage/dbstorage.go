@@ -103,7 +103,7 @@ func (dbs *DBStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 }
 
 // UpdateCounter обновляет метрику Counter в базе данных
-func (dbs *DBStorage) UpdateCounter(ctx context.Context, name string, value int64) {
+func (dbs *DBStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
 	if _, err := dbs.ExecContext(ctx, `
 		INSERT INTO counter as c (name, value)
 		VALUES ($1, $2)
@@ -111,11 +111,13 @@ func (dbs *DBStorage) UpdateCounter(ctx context.Context, name string, value int6
 		DO UPDATE SET value = c.value + EXCLUDED.value
 	`, name, value); err != nil {
 		dbs.logger.Error("UpdateCounter: %v", err)
+		return err
 	}
+	return nil
 }
 
 // UpdateGauge обновляет метрику Gauge в базе данных
-func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float64) {
+func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
 	if _, err := dbs.ExecContext(ctx, `
 		INSERT INTO gauge (name, value)
 		VALUES ($1, $2)
@@ -123,20 +125,22 @@ func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float6
 		DO UPDATE SET value = EXCLUDED.value
 	`, name, value); err != nil {
 		dbs.logger.Error("UpdateGauge: %v", err)
+		return err
 	}
+	return nil
 }
 
 // UpdateMetrics выполняет множественно обнволение метрик. Обновление выполняется в транзакции.
-func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) {
+func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
 	// вспомогательная функция, которую вызываем при ошибке
-	fail := func(err error) {
+	fail := func(err error) error {
 		dbs.logger.Error("UpdateMetrics: %v", err)
+		return err
 	}
 
 	tx, err := dbs.BeginTx(ctx, nil)
 	if err != nil {
-		fail(err)
-		return
+		return fail(err)
 	}
 	// всегда откатываем изменения, если не выполнился явный Commit
 	defer tx.Rollback()
@@ -148,14 +152,12 @@ func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics)
 			DO UPDATE SET value = c.value + EXCLUDED.value
 		`)
 		if err != nil {
-			fail(err)
-			return
+			return fail(err)
 		}
 		defer stmt.Close()
 		for _, m := range metrics.Counters {
 			if _, err := stmt.Exec(m.Name, m.Value); err != nil {
-				fail(err)
-				return
+				return fail(err)
 			}
 		}
 	}
@@ -167,64 +169,65 @@ func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics)
 			DO UPDATE SET value = g.value + EXCLUDED.value
 		`)
 		if err != nil {
-			fail(err)
-			return
+			return fail(err)
 		}
 		defer stmt.Close()
 		for _, m := range metrics.Gauges {
 			if _, err := stmt.Exec(m.Name, m.Value); err != nil {
-				fail(err)
-				return
+				return fail(err)
 			}
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		fail(err)
+		return fail(err)
 	}
+
+	return nil
 }
 
 // Snapshot создает снимок метрик из базы данных
-func (dbs *DBStorage) Snapshot(ctx context.Context, metrics *metric.Metrics) {
+func (dbs *DBStorage) Snapshot(ctx context.Context, metrics *metric.Metrics) error {
 
 	if metrics == nil {
-		return
+		return nil
+	}
+
+	fail := func(err error) error {
+		dbs.logger.Error("Snapshot: %v", err)
+		return err
 	}
 
 	counters, err := dbs.QueryContext(ctx, `SELECT name, value FROM counter`)
 	if err != nil {
-		dbs.logger.Error("Snapshot: %v", err)
-		return
+		return fail(err)
 	}
 	defer counters.Close()
 	for counters.Next() {
 		m := &metric.Counter{}
 		if err := counters.Scan(&m.Name, &m.Value); err != nil {
-			dbs.logger.Error("Snapshot: %v", err)
-			return
+			return fail(err)
 		}
 		metrics.Counters = append(metrics.Counters, m)
 	}
 	if err := counters.Err(); err != nil {
-		dbs.logger.Error("Snapshot: %v", err)
-		return
+		return fail(err)
 	}
 
 	gauges, err := dbs.QueryContext(ctx, `SELECT name, value FROM gauge`)
 	if err != nil {
-		dbs.logger.Error("Snapshot: %v", err)
-		return
+		return fail(err)
 	}
 	defer gauges.Close()
 	for gauges.Next() {
 		m := &metric.Gauge{}
 		if err := gauges.Scan(&m.Name, &m.Value); err != nil {
-			dbs.logger.Error("Snapshot: %v", err)
-			return
+			return fail(err)
 		}
 		metrics.Gauges = append(metrics.Gauges, m)
 	}
 	if err := gauges.Err(); err != nil {
-		dbs.logger.Error("Snapshot: %v", err)
-		return
+		return fail(err)
 	}
+
+	return nil
 }

@@ -16,9 +16,9 @@ type Collector interface {
 type metricStorage interface {
 	GetCounter(ctx context.Context, name string) *metric.Counter
 	GetGauge(ctx context.Context, name string) *metric.Gauge
-	UpdateCounter(ctx context.Context, name string, value int64)
-	UpdateGauge(ctx context.Context, name string, value float64)
-	Snapshot(ctx context.Context, metrics *metric.Metrics)
+	UpdateCounter(ctx context.Context, name string, value int64) error
+	UpdateGauge(ctx context.Context, name string, value float64) error
+	Snapshot(ctx context.Context, metrics *metric.Metrics) error
 }
 
 type logger interface {
