@@ -152,3 +152,15 @@ func (mr *MockStorageMockRecorder) UpdateGauge(ctx, name, value interface{}) *go
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateGauge", reflect.TypeOf((*MockStorage)(nil).UpdateGauge), ctx, name, value)
 }
+
+// UpdateMetrics mocks base method.
+func (m *MockStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UpdateMetrics", ctx, metrics)
+}
+
+// UpdateMetrics indicates an expected call of UpdateMetrics.
+func (mr *MockStorageMockRecorder) UpdateMetrics(ctx, metrics interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMetrics", reflect.TypeOf((*MockStorage)(nil).UpdateMetrics), ctx, metrics)
+}

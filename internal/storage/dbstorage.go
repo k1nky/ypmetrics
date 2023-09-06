@@ -105,6 +105,60 @@ func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float6
 	}
 }
 
+func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) {
+	fail := func(err error) {
+		dbs.logger.Error("UpdateMetrics: %v", err)
+	}
+
+	tx, err := dbs.BeginTx(ctx, nil)
+	if err != nil {
+		fail(err)
+		return
+	}
+	defer tx.Rollback()
+	if len(metrics.Counters) > 0 {
+		stmt, err := tx.PrepareContext(ctx, `
+			INSERT INTO counter as c (name, value)
+			VALUES ($1, $2)
+			ON CONFLICT ON CONSTRAINT counter_name_key
+			DO UPDATE SET value = c.value + EXCLUDED.value
+		`)
+		if err != nil {
+			fail(err)
+			return
+		}
+		defer stmt.Close()
+		for _, m := range metrics.Counters {
+			if _, err := stmt.Exec(m.Name, m.Value); err != nil {
+				fail(err)
+				return
+			}
+		}
+	}
+	if len(metrics.Gauges) > 0 {
+		stmt, err := tx.PrepareContext(ctx, `
+			INSERT INTO gauge as g (name, value)
+			VALUES ($1, $2)
+			ON CONFLICT ON CONSTRAINT gauge_name_key
+			DO UPDATE SET value = g.value + EXCLUDED.value
+		`)
+		if err != nil {
+			fail(err)
+			return
+		}
+		defer stmt.Close()
+		for _, m := range metrics.Gauges {
+			if _, err := stmt.Exec(m.Name, m.Value); err != nil {
+				fail(err)
+				return
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		fail(err)
+	}
+}
+
 func (dbs *DBStorage) Snapshot(ctx context.Context, metrics *metric.Metrics) {
 
 	if metrics == nil {

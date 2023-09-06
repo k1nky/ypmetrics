@@ -47,7 +47,7 @@ func (ms *MemStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 	return nil
 }
 
-// SetCounter сохраняет метрику Counter в хранилище
+// UpdateCounter сохраняет метрику Counter в хранилище
 func (ms *MemStorage) UpdateCounter(ctx context.Context, name string, value int64) {
 	c := ms.GetCounter(ctx, name)
 
@@ -63,7 +63,17 @@ func (ms *MemStorage) UpdateCounter(ctx context.Context, name string, value int6
 	ms.counters[name] = c
 }
 
-// SetGauge сохраняет метрику Gauge в хранилище
+// UpdateMetrics сохраняет метрики в хранилище
+func (ms *MemStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) {
+	for _, m := range metrics.Counters {
+		ms.UpdateCounter(ctx, m.Name, m.Value)
+	}
+	for _, m := range metrics.Gauges {
+		ms.UpdateGauge(ctx, m.Name, m.Value)
+	}
+}
+
+// UpdateGauge сохраняет метрику Gauge в хранилище
 func (ms *MemStorage) UpdateGauge(ctx context.Context, name string, value float64) {
 	g := ms.GetGauge(ctx, name)
 
