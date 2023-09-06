@@ -30,7 +30,7 @@ func New(keeper keeper.Keeper) Handler {
 func (h Handler) AllMetrics() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		metrics := metric.Metrics{}
-		h.keeper.Snapshot(&metrics)
+		h.keeper.Snapshot(ctx.Request.Context(), &metrics)
 		result := strings.Builder{}
 		for _, m := range metrics.Counters {
 			result.WriteString(fmt.Sprintf("%s = %s\n", m.Name, m))
@@ -54,14 +54,14 @@ func (h Handler) Value() gin.HandlerFunc {
 		strValue := ""
 		switch t {
 		case TypeCounter:
-			m := h.keeper.GetCounter(ctx.Param("name"))
+			m := h.keeper.GetCounter(ctx.Request.Context(), ctx.Param("name"))
 			if m == nil {
 				ctx.Status(http.StatusNotFound)
 				return
 			}
 			strValue = m.String()
 		case TypeGauge:
-			m := h.keeper.GetGauge(ctx.Param("name"))
+			m := h.keeper.GetGauge(ctx.Request.Context(), ctx.Param("name"))
 			if m == nil {
 				ctx.Status(http.StatusNotFound)
 				return
@@ -87,14 +87,14 @@ func (h Handler) ValueJSON() gin.HandlerFunc {
 		}
 		switch t {
 		case TypeCounter:
-			mm := h.keeper.GetCounter(m.ID)
+			mm := h.keeper.GetCounter(ctx.Request.Context(), m.ID)
 			if mm == nil {
 				ctx.Status(http.StatusNotFound)
 				return
 			}
 			m.Delta = &mm.Value
 		case TypeGauge:
-			mm := h.keeper.GetGauge(m.ID)
+			mm := h.keeper.GetGauge(ctx.Request.Context(), m.ID)
 			if mm == nil {
 				ctx.Status(http.StatusNotFound)
 				return
@@ -119,14 +119,14 @@ func (h Handler) Update() gin.HandlerFunc {
 				ctx.Status(http.StatusBadRequest)
 				return
 			} else {
-				h.keeper.UpdateCounter(ctx.Param("name"), v)
+				h.keeper.UpdateCounter(ctx.Request.Context(), ctx.Param("name"), v)
 			}
 		case TypeGauge:
 			if v, err := convertToFloat64(ctx.Param("value")); err != nil {
 				ctx.Status(http.StatusBadRequest)
 				return
 			} else {
-				h.keeper.UpdateGauge(ctx.Param("name"), v)
+				h.keeper.UpdateGauge(ctx.Request.Context(), ctx.Param("name"), v)
 			}
 		}
 		ctx.Status(http.StatusOK)
@@ -152,16 +152,16 @@ func (h Handler) UpdateJSON() gin.HandlerFunc {
 				ctx.Status(http.StatusBadRequest)
 				return
 			}
-			h.keeper.UpdateCounter(m.ID, *m.Delta)
-			c := h.keeper.GetCounter(m.ID)
+			h.keeper.UpdateCounter(ctx.Request.Context(), m.ID, *m.Delta)
+			c := h.keeper.GetCounter(ctx.Request.Context(), m.ID)
 			m.Delta = &c.Value
 		case TypeGauge:
 			if m.Value == nil {
 				ctx.Status(http.StatusBadRequest)
 				return
 			}
-			h.keeper.UpdateGauge(m.ID, *m.Value)
-			g := h.keeper.GetGauge(m.ID)
+			h.keeper.UpdateGauge(ctx.Request.Context(), m.ID, *m.Value)
+			g := h.keeper.GetGauge(ctx.Request.Context(), m.ID)
 			m.Value = &g.Value
 		}
 		ctx.JSON(http.StatusOK, m)

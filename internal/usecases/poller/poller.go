@@ -14,11 +14,11 @@ type Collector interface {
 }
 
 type metricStorage interface {
-	GetCounter(name string) *metric.Counter
-	GetGauge(name string) *metric.Gauge
-	UpdateCounter(name string, value int64)
-	UpdateGauge(name string, value float64)
-	Snapshot(*metric.Metrics)
+	GetCounter(ctx context.Context, name string) *metric.Counter
+	GetGauge(ctx context.Context, name string) *metric.Gauge
+	UpdateCounter(ctx context.Context, name string, value int64)
+	UpdateGauge(ctx context.Context, name string, value float64)
+	Snapshot(ctx context.Context, metrics *metric.Metrics)
 }
 
 type logger interface {
@@ -98,12 +98,12 @@ func (a Poller) Run(ctx context.Context) {
 					}
 					if len(m.Counters) != 0 {
 						for _, c := range m.Counters {
-							a.storage.UpdateCounter(c.Name, c.Value)
+							a.storage.UpdateCounter(ctx, c.Name, c.Value)
 						}
 					}
 					if len(m.Gauges) != 0 {
 						for _, g := range m.Gauges {
-							a.storage.UpdateGauge(g.Name, g.Value)
+							a.storage.UpdateGauge(ctx, g.Name, g.Value)
 						}
 					}
 				}
@@ -115,7 +115,8 @@ func (a Poller) Run(ctx context.Context) {
 
 func (a Poller) report() error {
 	snap := &metric.Metrics{}
-	a.storage.Snapshot(snap)
+	ctx := context.Background()
+	a.storage.Snapshot(ctx, snap)
 	for _, m := range snap.Counters {
 		if err := a.client.PushCounter(m.Name, m.Value); err != nil {
 			return err

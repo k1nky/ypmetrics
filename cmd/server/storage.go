@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/logger"
@@ -8,11 +10,11 @@ import (
 )
 
 type metricStorage interface {
-	GetCounter(name string) *metric.Counter
-	GetGauge(name string) *metric.Gauge
-	UpdateCounter(name string, value int64)
-	UpdateGauge(name string, value float64)
-	Snapshot(*metric.Metrics)
+	GetCounter(ctx context.Context, name string) *metric.Counter
+	GetGauge(ctx context.Context, name string) *metric.Gauge
+	UpdateCounter(ctx context.Context, name string, value int64)
+	UpdateGauge(ctx context.Context, name string, value float64)
+	Snapshot(ctx context.Context, metrics *metric.Metrics)
 	Close() error
 }
 

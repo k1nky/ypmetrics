@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -102,10 +103,11 @@ func (suite *fileStorageTestSuite) TestWriteToFile() {
 		suite.T().Errorf("unexpected error = %v", err)
 		return
 	}
+	ctx := context.TODO()
 	data, _ := os.ReadFile(filename)
 	want := `{"Counters":[{"Name":"c0","Value":1},{"Name":"c1","Value":15}],"Gauges":[{"Name":"g0","Value":1.1},{"Name":"g1","Value":36.6}]}`
 	assertMetricsJSONEq(suite.T(), want, string(data))
-	suite.fs.UpdateCounter("c2", 20)
+	suite.fs.UpdateCounter(ctx, "c2", 20)
 	if err := suite.fs.WriteToFile(f); err != nil {
 		suite.T().Errorf("unexpected error = %v", err)
 		return

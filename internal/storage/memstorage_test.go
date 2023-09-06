@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"testing"
 
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
@@ -39,13 +40,14 @@ func TestMemStorageGetCounter(t *testing.T) {
 			want: nil,
 		},
 	}
+	ctx := context.TODO()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ms := &MemStorage{
 				counters: tt.fields.counters,
 				gauges:   tt.fields.gauges,
 			}
-			got := ms.GetCounter(tt.args.name)
+			got := ms.GetCounter(ctx, tt.args.name)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -83,13 +85,14 @@ func TestMemStorageGetGauge(t *testing.T) {
 			want: nil,
 		},
 	}
+	ctx := context.TODO()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ms := &MemStorage{
 				counters: tt.fields.counters,
 				gauges:   tt.fields.gauges,
 			}
-			got := ms.GetGauge(tt.args.name)
+			got := ms.GetGauge(ctx, tt.args.name)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -126,14 +129,15 @@ func TestMemStorageUpdateCounter(t *testing.T) {
 			want: metric.NewCounter("c0", 20),
 		},
 	}
+	ctx := context.TODO()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ms := &MemStorage{
 				counters: tt.fields.counters,
 				gauges:   tt.fields.gauges,
 			}
-			ms.UpdateCounter(tt.args.m.Name, tt.args.m.Value)
-			got := ms.GetCounter(tt.args.m.Name)
+			ms.UpdateCounter(ctx, tt.args.m.Name, tt.args.m.Value)
+			got := ms.GetCounter(ctx, tt.args.m.Name)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -170,14 +174,15 @@ func TestMemStorageUpdateGauge(t *testing.T) {
 			want: metric.NewGauge("c0", 20),
 		},
 	}
+	ctx := context.TODO()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ms := &MemStorage{
 				counters: tt.fields.counters,
 				gauges:   tt.fields.gauges,
 			}
-			ms.UpdateGauge(tt.args.m.Name, tt.args.m.Value)
-			got := ms.GetGauge(tt.args.m.Name)
+			ms.UpdateGauge(ctx, tt.args.m.Name, tt.args.m.Value)
+			got := ms.GetGauge(ctx, tt.args.m.Name)
 			assert.Equal(t, tt.args.m, got)
 		})
 	}
@@ -219,13 +224,14 @@ func TestMemStorageSnapshot(t *testing.T) {
 			want: nil,
 		},
 	}
+	ctx := context.TODO()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ms := &MemStorage{
 				counters: tt.fields.counters,
 				gauges:   tt.fields.gauges,
 			}
-			ms.Snapshot(tt.args.snap)
+			ms.Snapshot(ctx, tt.args.snap)
 			if tt.args.snap == nil {
 				assert.Equal(t, tt.want, tt.args.snap)
 				return

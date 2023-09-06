@@ -13,7 +13,6 @@ import (
 	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/logger"
-	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/k1nky/ypmetrics/internal/storage/mock"
 	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
 	"github.com/stretchr/testify/assert"
@@ -116,10 +115,10 @@ func TestUpdate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctrl := gomock.NewController(t)
 	store := mock.NewMockStorage(ctrl)
-	store.EXPECT().GetCounter("c0").Return(metric.NewCounter("c0", 10))
-	store.EXPECT().GetGauge("g0").Return(metric.NewGauge("g0", 10.10))
-	store.EXPECT().UpdateCounter(gomock.Any(), gomock.Any())
-	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any())
+	store.EXPECT().GetCounter(gomock.Any(), "c0").Return(metric.NewCounter("c0", 10))
+	store.EXPECT().GetGauge(gomock.Any(), "g0").Return(metric.NewGauge("g0", 10.10))
+	store.EXPECT().UpdateCounter(gomock.Any(), gomock.Any(), gomock.Any())
+	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any(), gomock.Any())
 
 	keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
 	h := New(*keeper)
@@ -139,9 +138,9 @@ func TestUpdate(t *testing.T) {
 				return
 			}
 			if strings.Contains(tt.request, "/counter/") {
-				assert.Equal(t, tt.want.c, store.GetCounter(tt.want.c.Name))
+				assert.Equal(t, tt.want.c, store.GetCounter(c.Request.Context(), tt.want.c.Name))
 			} else {
-				assert.Equal(t, tt.want.g, store.GetGauge(tt.want.g.Name))
+				assert.Equal(t, tt.want.g, store.GetGauge(c.Request.Context(), tt.want.g.Name))
 			}
 		})
 	}
@@ -219,10 +218,10 @@ func TestUpdateJSON(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	store := mock.NewMockStorage(ctrl)
-	store.EXPECT().GetCounter("c0").Return(metric.NewCounter("c0", 11))
-	store.EXPECT().GetGauge("g0").Return(metric.NewGauge("g0", 0.1))
-	store.EXPECT().UpdateCounter(gomock.Any(), gomock.Any())
-	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any())
+	store.EXPECT().GetCounter(gomock.Any(), "c0").Return(metric.NewCounter("c0", 11))
+	store.EXPECT().GetGauge(gomock.Any(), "g0").Return(metric.NewGauge("g0", 0.1))
+	store.EXPECT().UpdateCounter(gomock.Any(), gomock.Any(), gomock.Any())
+	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any(), gomock.Any())
 
 	keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
 	h := New(*keeper)
@@ -316,13 +315,13 @@ func TestValue(t *testing.T) {
 			store := mock.NewMockStorage(ctrl)
 			switch tt.want.name {
 			case "c0":
-				store.EXPECT().GetCounter("c0").Return(metric.NewCounter("c0", 11))
+				store.EXPECT().GetCounter(gomock.Any(), "c0").Return(metric.NewCounter("c0", 11))
 			case "c1":
-				store.EXPECT().GetGauge("c1").Return(nil)
+				store.EXPECT().GetGauge(gomock.Any(), "c1").Return(nil)
 			case "g0":
-				store.EXPECT().GetGauge("g0").Return(metric.NewGauge("g0", 0.1))
+				store.EXPECT().GetGauge(gomock.Any(), "g0").Return(metric.NewGauge("g0", 0.1))
 			case "g100":
-				store.EXPECT().GetGauge("g100").Return(nil)
+				store.EXPECT().GetGauge(gomock.Any(), "g100").Return(nil)
 			}
 			keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
 			h := New(*keeper)
@@ -408,13 +407,13 @@ func TestValueJSON(t *testing.T) {
 			store := mock.NewMockStorage(ctrl)
 			switch tt.want.name {
 			case "c0":
-				store.EXPECT().GetCounter("c0").Return(metric.NewCounter("c0", 11))
+				store.EXPECT().GetCounter(gomock.Any(), "c0").Return(metric.NewCounter("c0", 11))
 			case "g1":
-				store.EXPECT().GetCounter("g1").Return(nil)
+				store.EXPECT().GetCounter(gomock.Any(), "g1").Return(nil)
 			case "g0":
-				store.EXPECT().GetGauge("g0").Return(metric.NewGauge("g0", 0.1))
+				store.EXPECT().GetGauge(gomock.Any(), "g0").Return(metric.NewGauge("g0", 0.1))
 			case "g100":
-				store.EXPECT().GetGauge("g100").Return(nil)
+				store.EXPECT().GetGauge(gomock.Any(), "g100").Return(nil)
 			}
 			keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
 			h := New(*keeper)
@@ -452,14 +451,10 @@ func TestAllMetrics(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	store := mock.NewMockStorage(ctrl)
-	store.EXPECT().Snapshot(gomock.Any()).SetArg(0, metric.Metrics{
-		Counters: []*metric.Counter{metric.NewCounter("c1", 10)},
-		Gauges:   []*metric.Gauge{metric.NewGauge("g1", 10.1)},
-	})
 
 	tests := []struct {
 		name string
-		ms   storage.Storage
+		ms   metric.Metrics
 		want want
 	}{
 		{
@@ -468,7 +463,10 @@ func TestAllMetrics(t *testing.T) {
 				statusCode: http.StatusOK,
 				value:      "c1 = 10\ng1 = 10.1\n",
 			},
-			ms: store,
+			ms: metric.Metrics{
+				Counters: []*metric.Counter{metric.NewCounter("c1", 10)},
+				Gauges:   []*metric.Gauge{metric.NewGauge("g1", 10.1)},
+			},
 		},
 		{
 			name: "Without values",
@@ -476,7 +474,7 @@ func TestAllMetrics(t *testing.T) {
 				statusCode: http.StatusOK,
 				value:      "",
 			},
-			ms: storage.NewMemStorage(),
+			ms: metric.Metrics{},
 		},
 	}
 
@@ -485,7 +483,8 @@ func TestAllMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, r := gin.CreateTestContext(w)
-			keeper := keeper.New(tt.ms, config.KeeperConfig{}, &logger.Blackhole{})
+			store.EXPECT().Snapshot(gomock.Any(), gomock.Any()).SetArg(1, tt.ms)
+			keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
 			h := New(*keeper)
 			r.GET("/", h.AllMetrics())
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)

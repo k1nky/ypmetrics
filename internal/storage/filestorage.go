@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -76,7 +77,8 @@ func NewSyncFileStorage(logger storageLogger) *SyncFileStorage {
 // Flush делает срез метрик и сохраняет его в поток
 func (fs *FileStorage) Flush(w io.Writer) error {
 	snap := metric.Metrics{}
-	fs.Snapshot(&snap)
+	ctx := context.Background()
+	fs.Snapshot(ctx, &snap)
 
 	if err := json.NewEncoder(w).Encode(snap); err != nil {
 		return err
@@ -182,16 +184,16 @@ func (sfs *SyncFileStorage) Open(filename string, restore bool) error {
 }
 
 // SetCounter записывает значение метрики типа Counter и сохраняет изменения в файл.
-func (sfs *SyncFileStorage) UpdateCounter(name string, value int64) {
-	sfs.MemStorage.UpdateCounter(name, value)
+func (sfs *SyncFileStorage) UpdateCounter(ctx context.Context, name string, value int64) {
+	sfs.MemStorage.UpdateCounter(ctx, name, value)
 	if err := sfs.WriteToFile(sfs.writer); err != nil {
 		sfs.logger.Error("SetCounter: %v", err)
 	}
 }
 
 // SetGauge записывает значение метрики типа Gauge и сохраняет изменения в файл.
-func (sfs *SyncFileStorage) UpdateGauge(name string, value float64) {
-	sfs.MemStorage.UpdateGauge(name, value)
+func (sfs *SyncFileStorage) UpdateGauge(ctx context.Context, name string, value float64) {
+	sfs.MemStorage.UpdateGauge(ctx, name, value)
 	if err := sfs.WriteToFile(sfs.writer); err != nil {
 		sfs.logger.Error("SetGauge: %v", err)
 	}

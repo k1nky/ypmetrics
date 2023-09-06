@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -32,29 +33,27 @@ func (dbs *DBStorage) Init() error {
 	if err != nil {
 		return err
 	}
-	if _, err = tx.Exec(`
+	tx.Exec(`
 		CREATE TABLE IF NOT EXISTS counter (
 			id serial PRIMARY KEY,
 			name varchar(100),
 			value integer,
 			UNIQUE (name)
 		);
-
-		CREATE TABLE IF NOT EXISTS gauge (
+	`)
+	tx.Exec(`CREATE TABLE IF NOT EXISTS gauge (
 			id serial PRIMARY KEY,
 			name varchar(100),
 			value double precision,
 			UNIQUE (name)
 		);
-	`); err != nil {
-		return err
-	}
+	`)
 	return tx.Commit()
 }
 
-func (dbs *DBStorage) GetCounter(name string) *metric.Counter {
+func (dbs *DBStorage) GetCounter(ctx context.Context, name string) *metric.Counter {
 	m := metric.NewCounter(name, 0)
-	row := dbs.QueryRow(`SELECT value FROM counter WHERE name=$1`, name)
+	row := dbs.QueryRowContext(ctx, `SELECT value FROM counter WHERE name=$1`, name)
 	if err := row.Err(); err != nil {
 		dbs.logger.Error("GetCounter: %v", err)
 		return nil
@@ -68,9 +67,9 @@ func (dbs *DBStorage) GetCounter(name string) *metric.Counter {
 	return m
 }
 
-func (dbs *DBStorage) GetGauge(name string) *metric.Gauge {
+func (dbs *DBStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 	m := metric.NewGauge(name, 0)
-	row := dbs.QueryRow(`SELECT value FROM gauge WHERE name=$1`, name)
+	row := dbs.QueryRowContext(ctx, `SELECT value FROM gauge WHERE name=$1`, name)
 	if err := row.Err(); err != nil {
 		dbs.logger.Error("GetGauge: %v", err)
 		return nil
@@ -84,8 +83,8 @@ func (dbs *DBStorage) GetGauge(name string) *metric.Gauge {
 	return m
 }
 
-func (dbs *DBStorage) UpdateCounter(name string, value int64) {
-	if _, err := dbs.Exec(`
+func (dbs *DBStorage) UpdateCounter(ctx context.Context, name string, value int64) {
+	if _, err := dbs.ExecContext(ctx, `
 		INSERT INTO counter as c (name, value)
 		VALUES ($1, $2)
 		ON CONFLICT ON CONSTRAINT counter_name_key
@@ -95,8 +94,8 @@ func (dbs *DBStorage) UpdateCounter(name string, value int64) {
 	}
 }
 
-func (dbs *DBStorage) UpdateGauge(name string, value float64) {
-	if _, err := dbs.Exec(`
+func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float64) {
+	if _, err := dbs.ExecContext(ctx, `
 		INSERT INTO gauge (name, value)
 		VALUES ($1, $2)
 		ON CONFLICT ON CONSTRAINT gauge_name_key
@@ -106,13 +105,13 @@ func (dbs *DBStorage) UpdateGauge(name string, value float64) {
 	}
 }
 
-func (dbs *DBStorage) Snapshot(metrics *metric.Metrics) {
+func (dbs *DBStorage) Snapshot(ctx context.Context, metrics *metric.Metrics) {
 
 	if metrics == nil {
 		return
 	}
 
-	counters, err := dbs.Query(`SELECT name, value FROM counter`)
+	counters, err := dbs.QueryContext(ctx, `SELECT name, value FROM counter`)
 	if err != nil {
 		dbs.logger.Error("Snapshot: %v", err)
 		return
@@ -131,7 +130,7 @@ func (dbs *DBStorage) Snapshot(metrics *metric.Metrics) {
 		return
 	}
 
-	gauges, err := dbs.Query(`SELECT name, value FROM gauge`)
+	gauges, err := dbs.QueryContext(ctx, `SELECT name, value FROM gauge`)
 	if err != nil {
 		dbs.logger.Error("Snapshot: %v", err)
 		return
