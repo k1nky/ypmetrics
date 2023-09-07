@@ -9,7 +9,14 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/protocol"
+)
+
+const (
+	DefaultRequestTimeout = 5 * time.Second
+	CounterType           = "counter"
+	GaugeType             = "gauge"
 )
 
 var (
@@ -30,7 +37,7 @@ func New(url string) *Client {
 	}
 	c := &Client{
 		EndpointURL: url,
-		httpclient:  resty.New().SetTimeout(5 * time.Second),
+		httpclient:  resty.New().SetTimeout(DefaultRequestTimeout),
 	}
 	return c
 }
@@ -41,69 +48,59 @@ func (c *Client) newRequest() *resty.Request {
 }
 
 // PushMetric отправляет метрику на сервер
-func (c *Client) PushMetric(typ, name, value string) (err error) {
-	var (
-		requestURL string
-		resp       *resty.Response
-	)
-	if requestURL, err = url.JoinPath(c.EndpointURL, "update", typ, name, value); err != nil {
-		return err
-	}
-	if resp, err = c.newRequest().SetHeader("Content-Type", "text/plain").Post(requestURL); err != nil {
-		return err
-	}
-	if resp.StatusCode() != http.StatusOK {
-		return ErrUnexpectedStatusCode
-	}
+func (c *Client) PushMetric(typ, name, value string) error {
 
-	return
+	path, err := url.JoinPath("update/", typ, name, value)
+	if err != nil {
+		return err
+	}
+	return c.pushData(path, "text/plain", nil)
 }
 
 // PushCounter отправляет счетчик на сервер в формате JSON
-func (c *Client) PushCounter(name string, value int64) (err error) {
-	var (
-		requestURL string
-		resp       *resty.Response
-	)
-
-	if requestURL, err = url.JoinPath(c.EndpointURL, "update/"); err != nil {
-		return
-	}
-	if resp, err = c.newRequest().
-		SetHeader("content-type", "application/json").
-		SetBody(protocol.Metrics{
-			ID:    name,
-			MType: "counter",
-			Delta: &value,
-		}).
-		Post(requestURL); err != nil {
-		return
-	}
-	if resp.StatusCode() != http.StatusOK {
-		return ErrUnexpectedStatusCode
-	}
-	return nil
+func (c *Client) PushCounter(name string, value int64) error {
+	return c.pushData("update/", "application/json", protocol.Metrics{
+		ID:    name,
+		MType: CounterType,
+		Delta: &value,
+	})
 }
 
 // PushGauge отправляет измеритель на сервер в формате JSON
 func (c *Client) PushGauge(name string, value float64) (err error) {
+	return c.pushData("update/", "application/json", protocol.Metrics{
+		ID:    name,
+		MType: GaugeType,
+		Value: &value,
+	})
+}
+
+// PushMetrics отправляет метрики на сервер в формате JSON
+func (c *Client) PushMetrics(metrics metric.Metrics) (err error) {
+	metricsCount := len(metrics.Counters) + len(metrics.Gauges)
+	if metricsCount == 0 {
+		return nil
+	}
+	m := make([]protocol.Metrics, 0, metricsCount)
+	for _, c := range metrics.Counters {
+		m = append(m, protocol.Metrics{ID: c.Name, MType: CounterType, Delta: &c.Value})
+	}
+	for _, g := range metrics.Gauges {
+		m = append(m, protocol.Metrics{ID: g.Name, MType: GaugeType, Value: &g.Value})
+	}
+	return c.pushData("updates/", "application/json", m)
+}
+
+func (c *Client) pushData(path string, contentType string, body interface{}) (err error) {
 	var (
 		requestURL string
 		resp       *resty.Response
 	)
-
-	if requestURL, err = url.JoinPath(c.EndpointURL, "update/"); err != nil {
-		return
+	if requestURL, err = url.JoinPath(c.EndpointURL, path); err != nil {
+		return err
 	}
-	if resp, err = c.newRequest().
-		SetHeader("content-type", "application/json").
-		SetBody(protocol.Metrics{
-			ID:    name,
-			MType: "gauge",
-			Value: &value,
-		}).
-		Post(requestURL); err != nil {
-		return
+	if resp, err = c.newRequest().SetHeader("content-type", contentType).SetBody(body).Post(requestURL); err != nil {
+		return err
 	}
 	if resp.StatusCode() != http.StatusOK {
 		return ErrUnexpectedStatusCode

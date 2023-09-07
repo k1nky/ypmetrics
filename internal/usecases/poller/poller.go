@@ -28,8 +28,9 @@ type logger interface {
 }
 
 type sender interface {
-	PushCounter(name string, value int64) (err error)
-	PushGauge(name string, value float64) (err error)
+	PushCounter(name string, value int64) error
+	PushGauge(name string, value float64) error
+	PushMetrics(metrics metric.Metrics) error
 }
 
 // Poller представляет собой набор метрик с расширенным функционалом. Он опрашивает сборщиков (Collector)
@@ -55,27 +56,6 @@ func New(cfg config.PollerConfig, store metricStorage, log logger, client sender
 // AddCollector добавляет совместимый сборщик для получения метрик.
 func (a *Poller) AddCollector(collectors ...Collector) {
 	a.collectors = append(a.collectors, collectors...)
-}
-
-func (a Poller) poll(ctx context.Context) {
-	for _, collector := range a.collectors {
-		a.logger.Debug("start polling %T", collector)
-		m, err := collector.Collect()
-		if err != nil {
-			a.logger.Error("collector %T: %s", collector, err)
-			continue
-		}
-		if len(m.Counters) != 0 {
-			for _, c := range m.Counters {
-				a.storage.UpdateCounter(ctx, c.Name, c.Value)
-			}
-		}
-		if len(m.Gauges) != 0 {
-			for _, g := range m.Gauges {
-				a.storage.UpdateGauge(ctx, g.Name, g.Value)
-			}
-		}
-	}
 }
 
 // Run запускает Poller
@@ -116,19 +96,30 @@ func (a Poller) Run(ctx context.Context) {
 	wg.Wait()
 }
 
+func (a Poller) poll(ctx context.Context) {
+	for _, collector := range a.collectors {
+		a.logger.Debug("start polling %T", collector)
+		m, err := collector.Collect()
+		if err != nil {
+			a.logger.Error("collector %T: %s", collector, err)
+			continue
+		}
+		if len(m.Counters) != 0 {
+			for _, c := range m.Counters {
+				a.storage.UpdateCounter(ctx, c.Name, c.Value)
+			}
+		}
+		if len(m.Gauges) != 0 {
+			for _, g := range m.Gauges {
+				a.storage.UpdateGauge(ctx, g.Name, g.Value)
+			}
+		}
+	}
+}
+
 func (a Poller) sendReport() error {
-	snap := &metric.Metrics{}
+	snapshot := &metric.Metrics{}
 	ctx := context.Background()
-	a.storage.Snapshot(ctx, snap)
-	for _, m := range snap.Counters {
-		if err := a.client.PushCounter(m.Name, m.Value); err != nil {
-			return err
-		}
-	}
-	for _, m := range snap.Gauges {
-		if err := a.client.PushGauge(m.Name, m.Value); err != nil {
-			return err
-		}
-	}
-	return nil
+	a.storage.Snapshot(ctx, snapshot)
+	return a.client.PushMetrics(*snapshot)
 }

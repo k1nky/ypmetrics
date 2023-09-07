@@ -48,10 +48,10 @@ func (suite *dbStorageTestSuite) TestDBStorageUpdateCounter() {
 func (suite *dbStorageTestSuite) TestDBStorageUpdateGauge() {
 	suite.shouldSkip()
 	ctx := context.TODO()
-	suite.db.UpdateGauge(ctx, "c0", 1)
-	suite.db.UpdateGauge(ctx, "c0", 10.1)
-	m := suite.db.GetGauge(ctx, "c0")
-	assert.Equal(suite.T(), metric.NewGauge("c0", 10.1), m)
+	suite.db.UpdateGauge(ctx, "g0", 1)
+	suite.db.UpdateGauge(ctx, "g0", 752304.097156)
+	m := suite.db.GetGauge(ctx, "g0")
+	assert.Equal(suite.T(), metric.NewGauge("g0", 752304.097156), m)
 }
 
 func (suite *dbStorageTestSuite) TestDBStorageUpdateMetrics() {

@@ -52,7 +52,7 @@ func (dbs *DBStorage) Initialize() error {
 		CREATE TABLE IF NOT EXISTS counter (
 			id serial PRIMARY KEY,
 			name varchar(100),
-			value integer,
+			value bigint,
 			UNIQUE (name)
 		);
 	`)
@@ -156,7 +156,7 @@ func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics)
 		}
 		defer stmt.Close()
 		for _, m := range metrics.Counters {
-			if _, err := stmt.Exec(m.Name, m.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, m.Name, m.Value); err != nil {
 				return fail(err)
 			}
 		}
@@ -166,14 +166,14 @@ func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics)
 			INSERT INTO gauge as g (name, value)
 			VALUES ($1, $2)
 			ON CONFLICT ON CONSTRAINT gauge_name_key
-			DO UPDATE SET value = g.value + EXCLUDED.value
+			DO UPDATE SET value = EXCLUDED.value
 		`)
 		if err != nil {
 			return fail(err)
 		}
 		defer stmt.Close()
 		for _, m := range metrics.Gauges {
-			if _, err := stmt.Exec(m.Name, m.Value); err != nil {
+			if _, err := stmt.ExecContext(ctx, m.Name, m.Value); err != nil {
 				return fail(err)
 			}
 		}
