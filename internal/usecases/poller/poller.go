@@ -98,7 +98,7 @@ func (a Poller) Run(ctx context.Context) {
 
 func (a Poller) poll(ctx context.Context) {
 	for _, collector := range a.collectors {
-		a.logger.Debug("start polling %T", collector)
+		a.logger.Debug("polling %T", collector)
 		m, err := collector.Collect()
 		if err != nil {
 			a.logger.Error("collector %T: %s", collector, err)
@@ -120,6 +120,8 @@ func (a Poller) poll(ctx context.Context) {
 func (a Poller) sendReport() error {
 	snapshot := &metric.Metrics{}
 	ctx := context.Background()
-	a.storage.Snapshot(ctx, snapshot)
+	if err := a.storage.Snapshot(ctx, snapshot); err != nil {
+		return err
+	}
 	return a.client.PushMetrics(*snapshot)
 }

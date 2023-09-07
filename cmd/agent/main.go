@@ -19,6 +19,11 @@ func main() {
 		l.Error("config: %s", err)
 		os.Exit(1)
 	}
+	if err := l.SetLevel(cfg.LogLevel); err != nil {
+		l.Error("config: %s", err)
+		os.Exit(1)
+	}
+	l.Debug("config: %+v", cfg)
 	Run(l, cfg)
 }
 

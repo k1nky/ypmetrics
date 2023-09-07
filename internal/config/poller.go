@@ -15,7 +15,8 @@ type PollerConfig struct {
 	// Интервал отправки метрик на сервер (в секундах)
 	ReportIntervalInSec uint `env:"REPORT_INTERVAL"`
 	// Интервал сбора метрик (в секундах)
-	PollIntervalInSec uint `env:"POLL_INTERVAL"`
+	PollIntervalInSec uint   `env:"POLL_INTERVAL"`
+	LogLevel          string `env:"LOG_LEVEL"`
 }
 
 const (
@@ -37,14 +38,17 @@ func parsePollerConfigFromCmd(c *PollerConfig) error {
 	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
 	reportInterval := cmd.UintP("report-interval", "r", DefReportIntervalInSec, "интервал отправки метрик на сервер")
 	pollInterval := cmd.UintP("poll-interval", "p", DefPollIntervalInSec, "интервал сбора метрик")
+	logLevel := cmd.StringP("log-level", "l", "info", "уровень логирования")
 
 	if err := cmd.Parse(os.Args[1:]); err != nil {
 		return err
 	}
+
 	*c = PollerConfig{
 		Address:             address,
 		ReportIntervalInSec: *reportInterval,
 		PollIntervalInSec:   *pollInterval,
+		LogLevel:            *logLevel,
 	}
 	return nil
 }

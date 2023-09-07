@@ -17,6 +17,7 @@ type KeeperConfig struct {
 	FileStoragePath    string     `env:"FILE_STORAGE_PATH"`
 	Restore            bool       `env:"RESTORE"`
 	DatabaseDSN        string     `env:"DATABASE_DSN"`
+	LogLevel           string     `env:"LOG_LEVEL"`
 }
 
 const (
@@ -39,6 +40,7 @@ func parseKeeperConfigFromCmd(c *KeeperConfig) error {
 	// https://github.com/spf13/pflag/issues/288
 	restore := cmd.StringP("restore", "r", "true", "загружать или нет ранее сохранённые значения из указанного файла при старте сервера")
 	databaseDSN := cmd.StringP("database-dsn", "d", "", "адрес подключения к БД")
+	logLevel := cmd.StringP("log-level", "l", "info", "уровень логирования")
 
 	if err := cmd.Parse(os.Args[1:]); err != nil {
 		return err
@@ -53,6 +55,7 @@ func parseKeeperConfigFromCmd(c *KeeperConfig) error {
 		FileStoragePath:    *storagePath,
 		Restore:            restoreValue,
 		DatabaseDSN:        *databaseDSN,
+		LogLevel:           *logLevel,
 	}
 	return nil
 }

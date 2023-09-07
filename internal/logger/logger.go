@@ -9,13 +9,15 @@ import (
 
 type Logger struct {
 	zapLogger *zap.Logger
+	level     zap.AtomicLevel
 }
 
 func New() *Logger {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	level := zap.NewAtomicLevelAt(zap.InfoLevel)
 	config := zap.Config{
-		Level:             zap.NewAtomicLevelAt(zap.InfoLevel),
+		Level:             level,
 		Development:       false,
 		DisableCaller:     true,
 		DisableStacktrace: false,
@@ -31,7 +33,17 @@ func New() *Logger {
 	}
 	return &Logger{
 		zapLogger: zap.Must(config.Build()),
+		level:     level,
 	}
+}
+
+func (l *Logger) SetLevel(level string) error {
+	levelValue, err := zapcore.ParseLevel(level)
+	if err != nil {
+		return err
+	}
+	l.level.SetLevel(levelValue)
+	return nil
 }
 
 func (l *Logger) Debug(template string, args ...interface{}) {
