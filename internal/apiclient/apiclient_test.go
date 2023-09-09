@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
 
 func TestNew(t *testing.T) {
@@ -242,4 +244,46 @@ func TestClientPushMetrics(t *testing.T) {
 			}
 		})
 	}
+}
+
+type retrySendSuite struct {
+	suite.Suite
+	client *Client
+}
+
+func (suite *retrySendSuite) SetupTest() {
+	suite.client = New("")
+}
+
+func (suite *retrySendSuite) TestNoRetry() {
+	httpserver := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+	}))
+	defer httpserver.Close()
+	suite.client.Retries = []time.Duration{}
+	request := suite.client.httpclient.R()
+	request.Method = http.MethodGet
+	request.URL = httpserver.URL
+	_, err := suite.client.send(request)
+	if err != nil {
+		suite.Fail("no retry", err)
+	}
+}
+
+func (suite *retrySendSuite) TestNotShouldRetry() {
+	httpserver := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+	}))
+	defer httpserver.Close()
+	suite.client.Retries = []time.Duration{}
+	request := suite.client.httpclient.R()
+	request.URL = "192.168."
+	_, err := suite.client.send(request)
+	if err != nil {
+		suite.Fail("no retry", err)
+	}
+}
+
+func TestRetrySend(t *testing.T) {
+	suite.Run(t, new(retrySendSuite))
 }

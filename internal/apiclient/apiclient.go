@@ -3,6 +3,7 @@ package apiclient
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -27,6 +28,7 @@ var (
 type Client struct {
 	// URL сервера сбора метрик в формате <протокол>://<хост>[:порт]
 	EndpointURL string
+	Retries     []time.Duration
 	httpclient  *resty.Client
 }
 
@@ -37,6 +39,7 @@ func New(url string) *Client {
 	}
 	c := &Client{
 		EndpointURL: url,
+		Retries:     []time.Duration{time.Second, 3 * time.Second, 5 * time.Second},
 		httpclient:  resty.New().SetTimeout(DefaultRequestTimeout),
 	}
 	return c
@@ -99,11 +102,28 @@ func (c *Client) pushData(path string, contentType string, body interface{}) (er
 	if requestURL, err = url.JoinPath(c.EndpointURL, path); err != nil {
 		return err
 	}
-	if resp, err = c.newRequest().SetHeader("content-type", contentType).SetBody(body).Post(requestURL); err != nil {
+	request := c.newRequest().SetHeader("content-type", contentType).SetBody(body)
+	request.Method = http.MethodPost
+	request.URL = requestURL
+	if resp, err = c.send(request); err != nil {
 		return err
 	}
 	if resp.StatusCode() != http.StatusOK {
 		return ErrUnexpectedStatusCode
 	}
 	return nil
+}
+
+func (c *Client) send(request *resty.Request) (response *resty.Response, err error) {
+	for i := 0; ; i++ {
+		if response, err = request.Send(); err == nil {
+			return
+		}
+		if i >= len(c.Retries) {
+			break
+		}
+		time.Sleep(c.Retries[i])
+	}
+	err = fmt.Errorf("attempts exceeded: %w", err)
+	return
 }
