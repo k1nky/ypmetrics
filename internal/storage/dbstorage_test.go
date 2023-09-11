@@ -17,6 +17,9 @@ type dbStorageTestSuite struct {
 }
 
 func (suite *dbStorageTestSuite) SetupTest() {
+	if suite.shouldSkip() {
+		return
+	}
 	suite.db = NewDBStorage(&logger.Blackhole{})
 	if err := suite.db.Open("postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable"); err != nil {
 		suite.FailNow(err.Error())
@@ -26,10 +29,12 @@ func (suite *dbStorageTestSuite) SetupTest() {
 	suite.db.Exec(`TRUNCATE gauge;`)
 }
 
-func (suite *dbStorageTestSuite) shouldSkip() {
+func (suite *dbStorageTestSuite) shouldSkip() bool {
 	if len(os.Getenv("TEST_DB_READY")) == 0 {
 		suite.T().Skip()
+		return true
 	}
+	return false
 }
 
 func TestDBStorage(t *testing.T) {
@@ -37,7 +42,7 @@ func TestDBStorage(t *testing.T) {
 }
 
 func (suite *dbStorageTestSuite) TestDBStorageUpdateCounter() {
-	// suite.shouldSkip()
+	suite.shouldSkip()
 	ctx := context.TODO()
 	suite.db.UpdateCounter(ctx, "c0", 1)
 	suite.db.UpdateCounter(ctx, "c0", 10)
