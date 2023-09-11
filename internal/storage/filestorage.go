@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
+	"github.com/k1nky/ypmetrics/internal/retrier"
 )
 
 // FileStorage хранит текущие метрики в памяти.
@@ -115,6 +116,17 @@ func (fs *FileStorage) Restore(r io.Reader) error {
 
 // WriteToFile сохраняет метрики в файл. Файл должен быть предварительно открыт.
 func (fs *FileStorage) WriteToFile(f *os.File) error {
+	var err error
+	for r := retrier.New(retrier.AlwaysRetry); r.Next(err); {
+		err = fs.writeToFile(f)
+		if err != nil {
+			fs.logger.Error("WriteToFile: %v", err)
+		}
+	}
+	return err
+}
+
+func (fs *FileStorage) writeToFile(f *os.File) error {
 	fs.writeLock.Lock()
 	defer fs.writeLock.Unlock()
 	if _, err := f.Seek(0, 0); err != nil {

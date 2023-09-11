@@ -37,7 +37,7 @@ func TestDBStorage(t *testing.T) {
 }
 
 func (suite *dbStorageTestSuite) TestDBStorageUpdateCounter() {
-	suite.shouldSkip()
+	// suite.shouldSkip()
 	ctx := context.TODO()
 	suite.db.UpdateCounter(ctx, "c0", 1)
 	suite.db.UpdateCounter(ctx, "c0", 10)

@@ -3,7 +3,6 @@ package apiclient
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/protocol"
+	"github.com/k1nky/ypmetrics/internal/retrier"
 )
 
 const (
@@ -57,12 +57,12 @@ func (c *Client) PushMetric(typ, name, value string) error {
 	if err != nil {
 		return err
 	}
-	return c.pushData(path, "text/plain", nil)
+	return c.postData(path, "text/plain", nil)
 }
 
 // PushCounter отправляет счетчик на сервер в формате JSON
 func (c *Client) PushCounter(name string, value int64) error {
-	return c.pushData("update/", "application/json", protocol.Metrics{
+	return c.postData("update/", "application/json", protocol.Metrics{
 		ID:    name,
 		MType: CounterType,
 		Delta: &value,
@@ -71,7 +71,7 @@ func (c *Client) PushCounter(name string, value int64) error {
 
 // PushGauge отправляет измеритель на сервер в формате JSON
 func (c *Client) PushGauge(name string, value float64) (err error) {
-	return c.pushData("update/", "application/json", protocol.Metrics{
+	return c.postData("update/", "application/json", protocol.Metrics{
 		ID:    name,
 		MType: GaugeType,
 		Value: &value,
@@ -91,10 +91,11 @@ func (c *Client) PushMetrics(metrics metric.Metrics) (err error) {
 	for _, g := range metrics.Gauges {
 		m = append(m, protocol.Metrics{ID: g.Name, MType: GaugeType, Value: &g.Value})
 	}
-	return c.pushData("updates/", "application/json", m)
+	return c.postData("updates/", "application/json", m)
 }
 
-func (c *Client) pushData(path string, contentType string, body interface{}) (err error) {
+// Отправляет POST запрос по пути path с типом контента contentType и телом body
+func (c *Client) postData(path string, contentType string, body interface{}) (err error) {
 	var (
 		requestURL string
 		resp       *resty.Response
@@ -102,28 +103,40 @@ func (c *Client) pushData(path string, contentType string, body interface{}) (er
 	if requestURL, err = url.JoinPath(c.EndpointURL, path); err != nil {
 		return err
 	}
+	// формируем запрос
 	request := c.newRequest().SetHeader("content-type", contentType).SetBody(body)
 	request.Method = http.MethodPost
 	request.URL = requestURL
 	if resp, err = c.send(request); err != nil {
 		return err
 	}
+	// код ответа отличный от 200 не будем считать ошибкой отправки данных
 	if resp.StatusCode() != http.StatusOK {
 		return ErrUnexpectedStatusCode
 	}
 	return nil
 }
 
+// Отправляет сформированный запрос на сервер. Если при отправке возникнут ошибки,
+// запрос будет отправлен повторно.
 func (c *Client) send(request *resty.Request) (response *resty.Response, err error) {
-	for i := 0; ; i++ {
-		if response, err = request.Send(); err == nil {
-			return
-		}
-		if i >= len(c.Retries) {
-			break
-		}
-		time.Sleep(c.Retries[i])
+
+	for r := retrier.New(c.shouldRetry); r.Next(err); {
+		response, err = request.Send()
 	}
-	err = fmt.Errorf("attempts exceeded: %w", err)
 	return
+}
+
+// Определяет условие, при котором неуспешно отправленный запрос должен быть отправлен повторно.
+func (c *Client) shouldRetry(err error) bool {
+	var e *url.Error
+
+	// ошибка при отправке запроса скорее всего будет ошибкой транспорта, поэтому можно всегда повторно
+	// отправлять запрос. В рамках данного проекта, не будем повторять запрос, если возникла разбора запроса.
+	if errors.As(err, &e) {
+		if e.Op == "parse" {
+			return false
+		}
+	}
+	return true
 }

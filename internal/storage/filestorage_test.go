@@ -97,6 +97,7 @@ func (suite *fileStorageTestSuite) TestWriteToFile() {
 		suite.T().Errorf("unexpected error = %v", err)
 		return
 	}
+	defer f.Close()
 	if err := suite.fs.WriteToFile(f); err != nil {
 		suite.T().Errorf("unexpected error = %v", err)
 		return

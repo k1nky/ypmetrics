@@ -3,9 +3,14 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"net"
 
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
+	"github.com/k1nky/ypmetrics/internal/retrier"
 )
 
 const (
@@ -34,10 +39,6 @@ func (dbs *DBStorage) Open(dataSourceName string) (err error) {
 
 	dbs.SetMaxOpenConns(MaxKeepaliveDBConnections)
 	dbs.SetMaxIdleConns(MaxKeepaliveDBConnections)
-
-	if err := dbs.Ping(); err != nil {
-		return err
-	}
 
 	return dbs.Initialize()
 }
@@ -104,43 +105,58 @@ func (dbs *DBStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 
 // UpdateCounter обновляет метрику Counter в базе данных
 func (dbs *DBStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
-	if _, err := dbs.ExecContext(ctx, `
-		INSERT INTO counter as c (name, value)
-		VALUES ($1, $2)
-		ON CONFLICT ON CONSTRAINT counter_name_key
-		DO UPDATE SET value = c.value + EXCLUDED.value
-	`, name, value); err != nil {
-		dbs.logger.Error("UpdateCounter: %v", err)
-		return err
+	var err error
+
+	for retrier := retrier.New(shouldRetryDBQuery); retrier.Next(err); {
+		_, err = dbs.ExecContext(ctx, `
+			INSERT INTO counter as c (name, value)
+			VALUES ($1, $2)
+			ON CONFLICT ON CONSTRAINT counter_name_key
+			DO UPDATE SET value = c.value + EXCLUDED.value
+		`, name, value)
+		if err != nil {
+			dbs.logger.Error("UpdateCounter: %v", err)
+		}
 	}
-	return nil
+	return err
 }
 
 // UpdateGauge обновляет метрику Gauge в базе данных
 func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
-	if _, err := dbs.ExecContext(ctx, `
-		INSERT INTO gauge (name, value)
-		VALUES ($1, $2)
-		ON CONFLICT ON CONSTRAINT gauge_name_key
-		DO UPDATE SET value = EXCLUDED.value
-	`, name, value); err != nil {
-		dbs.logger.Error("UpdateGauge: %v", err)
-		return err
+	var err error
+
+	for retrier := retrier.New(shouldRetryDBQuery); retrier.Next(err); {
+		_, err = dbs.ExecContext(ctx, `
+			INSERT INTO gauge (name, value)
+			VALUES ($1, $2)
+			ON CONFLICT ON CONSTRAINT gauge_name_key
+			DO UPDATE SET value = EXCLUDED.value
+		`, name, value)
+		if err != nil {
+			dbs.logger.Error("UpdateGauge: %v", err)
+		}
 	}
-	return nil
+	return err
 }
 
 // UpdateMetrics выполняет множественно обнволение метрик. Обновление выполняется в транзакции.
 func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
-	// вспомогательная функция, которую вызываем при ошибке
-	fail := func(err error) error {
-		dbs.logger.Error("UpdateMetrics: %v", err)
-		return err
+	var err error
+
+	for retrier := retrier.New(shouldRetryDBQuery); retrier.Next(err); {
+		err = dbs.updateMetrics(ctx, metrics)
+		if err != nil {
+			dbs.logger.Error("UpdateMetrics: %v", err)
+		}
 	}
+	return err
+}
+
+func (dbs *DBStorage) updateMetrics(ctx context.Context, metrics metric.Metrics) error {
 
 	tx, err := dbs.BeginTx(ctx, nil)
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	// всегда откатываем изменения, если не выполнился явный Commit
 	defer tx.Rollback()
@@ -152,12 +168,12 @@ func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics)
 			DO UPDATE SET value = c.value + EXCLUDED.value
 		`)
 		if err != nil {
-			return fail(err)
+			return err
 		}
 		defer stmt.Close()
 		for _, m := range metrics.Counters {
 			if _, err := stmt.ExecContext(ctx, m.Name, m.Value); err != nil {
-				return fail(err)
+				return err
 			}
 		}
 	}
@@ -169,17 +185,17 @@ func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics)
 			DO UPDATE SET value = EXCLUDED.value
 		`)
 		if err != nil {
-			return fail(err)
+			return err
 		}
 		defer stmt.Close()
 		for _, m := range metrics.Gauges {
 			if _, err := stmt.ExecContext(ctx, m.Name, m.Value); err != nil {
-				return fail(err)
+				return err
 			}
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return fail(err)
+		return err
 	}
 
 	return nil
@@ -230,4 +246,20 @@ func (dbs *DBStorage) Snapshot(ctx context.Context, metrics *metric.Metrics) err
 	}
 
 	return nil
+}
+
+// shouldRetryDBQuery определяет условие, при котором следует
+// повторить запрос к базе данных.
+func shouldRetryDBQuery(err error) bool {
+	var pgerr *pgconn.PgError
+	var neterr *net.OpError
+
+	// повторяем запрос в случае ошибки соединения
+	if errors.As(err, &pgerr) {
+		return pgerrcode.IsConnectionException(pgerr.Code)
+	}
+	if errors.Is(err, neterr) {
+		return true
+	}
+	return false
 }
