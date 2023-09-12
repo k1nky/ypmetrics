@@ -11,6 +11,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/retrier"
+	_ "github.com/lib/pq"
 )
 
 const (
@@ -31,8 +32,8 @@ func NewDBStorage(logger storageLogger) *DBStorage {
 
 // Open открывает подключение к базе данных. Если БД недоступна возвращает ошибку.
 // При необходимости выполняет инициализацию базы данных.
-func (dbs *DBStorage) Open(dataSourceName string) (err error) {
-	dbs.DB, err = sql.Open("pgx", dataSourceName)
+func (dbs *DBStorage) Open(cfg Config) (err error) {
+	dbs.DB, err = sql.Open("pgx", cfg.DSN)
 	if err != nil {
 		return err
 	}
@@ -160,6 +161,7 @@ func (dbs *DBStorage) updateMetrics(ctx context.Context, metrics metric.Metrics)
 	}
 	// всегда откатываем изменения, если не выполнился явный Commit
 	defer tx.Rollback()
+
 	if len(metrics.Counters) > 0 {
 		stmt, err := tx.PrepareContext(ctx, `
 			INSERT INTO counter as c (name, value)

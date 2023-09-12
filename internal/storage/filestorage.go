@@ -153,18 +153,20 @@ func (sfs *SyncFileStorage) Close() error {
 }
 
 // Open открывает асинхронное файловое хранилище
-func (afs *AsyncFileStorage) Open(filename string, restore bool, flushInterval time.Duration) error {
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0660)
+func (afs *AsyncFileStorage) Open(cfg Config) error {
+	f, err := os.OpenFile(cfg.StoragePath, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
 		return err
 	}
-	if err := afs.Restore(f); err != nil {
-		if !os.IsNotExist(err) {
-			afs.logger.Error("Open: %v", err)
+	if cfg.Restore {
+		if err := afs.Restore(f); err != nil {
+			if !os.IsNotExist(err) {
+				afs.logger.Error("Open: %v", err)
+			}
 		}
 	}
 	go func() {
-		t := time.NewTicker(flushInterval)
+		t := time.NewTicker(cfg.StoreInterval)
 		defer f.Close()
 		for {
 			select {
@@ -181,14 +183,16 @@ func (afs *AsyncFileStorage) Open(filename string, restore bool, flushInterval t
 }
 
 // Open открывает синхронное файловое хранилище
-func (sfs *SyncFileStorage) Open(filename string, restore bool) error {
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0660)
+func (sfs *SyncFileStorage) Open(cfg Config) error {
+	f, err := os.OpenFile(cfg.StoragePath, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
 		return err
 	}
-	if err := sfs.Restore(f); err != nil {
-		if !os.IsNotExist(err) {
-			sfs.logger.Error("Open: %v", err)
+	if cfg.Restore {
+		if err := sfs.Restore(f); err != nil {
+			if !os.IsNotExist(err) {
+				sfs.logger.Error("Open: %v", err)
+			}
 		}
 	}
 	sfs.writer = f

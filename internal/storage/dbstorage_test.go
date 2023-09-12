@@ -21,7 +21,10 @@ func (suite *dbStorageTestSuite) SetupTest() {
 		return
 	}
 	suite.db = NewDBStorage(&logger.Blackhole{})
-	if err := suite.db.Open("postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable"); err != nil {
+	cfg := Config{
+		DSN: "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable",
+	}
+	if err := suite.db.Open(cfg); err != nil {
 		suite.FailNow(err.Error())
 		return
 	}

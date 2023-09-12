@@ -9,6 +9,7 @@ import (
 	"github.com/k1nky/ypmetrics/internal/handler"
 	"github.com/k1nky/ypmetrics/internal/handler/middleware"
 	"github.com/k1nky/ypmetrics/internal/logger"
+	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
 )
 
@@ -39,12 +40,18 @@ func main() {
 }
 
 func Run(l *logger.Logger, cfg config.KeeperConfig) {
-	store, err := openStorage(cfg, l)
-	if err != nil {
+	storeConfig := storage.Config{
+		DSN:           cfg.DatabaseDSN,
+		StoragePath:   cfg.FileStoragePath,
+		StoreInterval: cfg.StorageInterval(),
+		Restore:       cfg.Restore,
+	}
+	store := storage.NewStorage(storeConfig, l)
+	if err := store.Open(storeConfig); err != nil {
 		l.Error("opening storage: %v", err)
 	}
-
 	defer store.Close()
+
 	uc := keeper.New(store, cfg, l)
 	h := handler.New(*uc)
 	router := newRouter(h, l)

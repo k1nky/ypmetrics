@@ -28,7 +28,6 @@ var (
 type Client struct {
 	// URL сервера сбора метрик в формате <протокол>://<хост>[:порт]
 	EndpointURL string
-	Retries     []time.Duration
 	httpclient  *resty.Client
 }
 
@@ -39,7 +38,6 @@ func New(url string) *Client {
 	}
 	c := &Client{
 		EndpointURL: url,
-		Retries:     []time.Duration{time.Second, 3 * time.Second, 5 * time.Second},
 		httpclient:  resty.New().SetTimeout(DefaultRequestTimeout),
 	}
 	return c

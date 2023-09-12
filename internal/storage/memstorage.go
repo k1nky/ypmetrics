@@ -23,6 +23,10 @@ func NewMemStorage() *MemStorage {
 	}
 }
 
+func (ms *MemStorage) Open(cfg Config) error {
+	return nil
+}
+
 // GetCounter возвращает метрику Counter по имени name.
 // Будет возвращен nil, если метрика не найдена
 func (ms *MemStorage) GetCounter(ctx context.Context, name string) *metric.Counter {

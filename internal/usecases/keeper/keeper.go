@@ -39,8 +39,11 @@ func New(store metricStorage, cfg config.KeeperConfig, logger logger) *Keeper {
 
 // Ping проверяет подключение к базе данных.
 func (k *Keeper) Ping(ctx context.Context) error {
+	cfg := storage.Config{
+		DSN: k.config.DatabaseDSN,
+	}
 	db := storage.NewDBStorage(k.logger)
-	if err := db.Open(k.config.DatabaseDSN); err != nil {
+	if err := db.Open(cfg); err != nil {
 		return err
 	}
 	defer db.Close()

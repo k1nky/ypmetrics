@@ -10,6 +10,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	metric "github.com/k1nky/ypmetrics/internal/entities/metric"
+	storage "github.com/k1nky/ypmetrics/internal/storage"
 )
 
 // MockstorageLogger is a mock of storageLogger interface.
@@ -115,6 +116,20 @@ func (m *MockStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 func (mr *MockStorageMockRecorder) GetGauge(ctx, name interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGauge", reflect.TypeOf((*MockStorage)(nil).GetGauge), ctx, name)
+}
+
+// Open mocks base method.
+func (m *MockStorage) Open(cfg storage.Config) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Open", cfg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Open indicates an expected call of Open.
+func (mr *MockStorageMockRecorder) Open(cfg interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockStorage)(nil).Open), cfg)
 }
 
 // Snapshot mocks base method.
