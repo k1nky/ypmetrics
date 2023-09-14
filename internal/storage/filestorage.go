@@ -218,6 +218,18 @@ func (sfs *SyncFileStorage) UpdateGauge(ctx context.Context, name string, value 
 	}
 	if err := sfs.WriteToFile(sfs.writer); err != nil {
 		sfs.logger.Error("SetGauge: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (sfs *SyncFileStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
+	if err := sfs.MemStorage.UpdateMetrics(ctx, metrics); err != nil {
+		return err
+	}
+	if err := sfs.writeToFile(sfs.writer); err != nil {
+		sfs.logger.Error("SetGauge: %v", err)
+		return err
 	}
 	return nil
 }
