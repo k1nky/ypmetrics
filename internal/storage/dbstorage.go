@@ -11,7 +11,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/retrier"
-	_ "github.com/lib/pq"
 )
 
 const (
@@ -141,6 +140,9 @@ func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float6
 }
 
 // UpdateMetrics выполняет множественно обнволение метрик. Обновление выполняется в транзакции.
+// Для множественного обновления используется вариант с функцией UNNEST.
+// В dbstorage_test рассмотрены еще возможные варианты BenchmarkBulkUpdate*. Выбран вариант с UNNEST,
+// т.к. не требует создания строк, однако требует указания типа аргументов.
 func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
 	var err error
 
@@ -165,7 +167,7 @@ func (dbs *DBStorage) updateMetrics(ctx context.Context, metrics metric.Metrics)
 	if len(metrics.Counters) > 0 {
 		stmt, err := tx.PrepareContext(ctx, `
 			INSERT INTO counter as c (name, value)
-			VALUES ($1, $2)
+			VALUES (UNNEST($1::varchar[]), UNNEST($2::bigint[]))
 			ON CONFLICT ON CONSTRAINT counter_name_key
 			DO UPDATE SET value = c.value + EXCLUDED.value
 		`)
@@ -173,16 +175,20 @@ func (dbs *DBStorage) updateMetrics(ctx context.Context, metrics metric.Metrics)
 			return err
 		}
 		defer stmt.Close()
+		names := make([]string, 0, len(metrics.Counters))
+		values := make([]int64, 0, len(metrics.Counters))
 		for _, m := range metrics.Counters {
-			if _, err := stmt.ExecContext(ctx, m.Name, m.Value); err != nil {
-				return err
-			}
+			names = append(names, m.Name)
+			values = append(values, m.Value)
+		}
+		if _, err := stmt.ExecContext(ctx, names, values); err != nil {
+			return err
 		}
 	}
 	if len(metrics.Gauges) > 0 {
 		stmt, err := tx.PrepareContext(ctx, `
 			INSERT INTO gauge as g (name, value)
-			VALUES ($1, $2)
+			VALUES (UNNEST($1::varchar[]), UNNEST($2::double precision[]))
 			ON CONFLICT ON CONSTRAINT gauge_name_key
 			DO UPDATE SET value = EXCLUDED.value
 		`)
@@ -190,10 +196,14 @@ func (dbs *DBStorage) updateMetrics(ctx context.Context, metrics metric.Metrics)
 			return err
 		}
 		defer stmt.Close()
+		names := make([]string, 0, len(metrics.Counters))
+		values := make([]float64, 0, len(metrics.Counters))
 		for _, m := range metrics.Gauges {
-			if _, err := stmt.ExecContext(ctx, m.Name, m.Value); err != nil {
-				return err
-			}
+			names = append(names, m.Name)
+			values = append(values, m.Value)
+		}
+		if _, err := stmt.ExecContext(ctx, names, values); err != nil {
+			return err
 		}
 	}
 	if err := tx.Commit(); err != nil {
