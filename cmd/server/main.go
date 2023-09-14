@@ -9,6 +9,7 @@ import (
 	"github.com/k1nky/ypmetrics/internal/handler"
 	"github.com/k1nky/ypmetrics/internal/handler/middleware"
 	"github.com/k1nky/ypmetrics/internal/logger"
+	"github.com/k1nky/ypmetrics/internal/retrier"
 	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
 )
@@ -46,7 +47,7 @@ func Run(l *logger.Logger, cfg config.KeeperConfig) {
 		StoreInterval: cfg.StorageInterval(),
 		Restore:       cfg.Restore,
 	}
-	store := storage.NewStorage(storeConfig, l)
+	store := storage.NewStorage(storeConfig, l, retrier.New())
 	if err := store.Open(storeConfig); err != nil {
 		l.Error("opening storage: %v", err)
 	}

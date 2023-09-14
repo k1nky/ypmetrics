@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
-	"github.com/k1nky/ypmetrics/internal/retrier"
 )
 
 const (
@@ -20,12 +19,14 @@ const (
 // Хранилище метрик в базе данных
 type DBStorage struct {
 	*sql.DB
-	logger storageLogger
+	retrier storageRetrier
+	logger  storageLogger
 }
 
-func NewDBStorage(logger storageLogger) *DBStorage {
+func NewDBStorage(logger storageLogger, retrier storageRetrier) *DBStorage {
 	return &DBStorage{
-		logger: logger,
+		logger:  logger,
+		retrier: retrier,
 	}
 }
 
@@ -107,7 +108,7 @@ func (dbs *DBStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 func (dbs *DBStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
 	var err error
 
-	for retrier := retrier.New(shouldRetryDBQuery); retrier.Next(err); {
+	for dbs.retrier.Init(shouldRetryDBQuery); dbs.retrier.Next(err); {
 		_, err = dbs.ExecContext(ctx, `
 			INSERT INTO counter as c (name, value)
 			VALUES ($1, $2)
@@ -125,7 +126,7 @@ func (dbs *DBStorage) UpdateCounter(ctx context.Context, name string, value int6
 func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
 	var err error
 
-	for retrier := retrier.New(shouldRetryDBQuery); retrier.Next(err); {
+	for dbs.retrier.Init(shouldRetryDBQuery); dbs.retrier.Next(err); {
 		_, err = dbs.ExecContext(ctx, `
 			INSERT INTO gauge (name, value)
 			VALUES ($1, $2)
@@ -146,7 +147,7 @@ func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float6
 func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
 	var err error
 
-	for retrier := retrier.New(shouldRetryDBQuery); retrier.Next(err); {
+	for dbs.retrier.Init(shouldRetryDBQuery); dbs.retrier.Next(err); {
 		err = dbs.updateMetrics(ctx, metrics)
 		if err != nil {
 			dbs.logger.Error("UpdateMetrics: %v", err)

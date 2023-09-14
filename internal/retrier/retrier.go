@@ -19,13 +19,17 @@ type Retrier struct {
 }
 
 // Возвращает новый контроллер повторного выполнения
-func New(shouldRetry ShouldRetry) Retrier {
-	return Retrier{
+func New() *Retrier {
+	return &Retrier{
 		attempt: 0,
 		// по умолчанию 1 сек, 3 сек, 5 сек
-		retries:     []time.Duration{time.Second, 3 * time.Second, 5 * time.Second},
-		shouldRetry: shouldRetry,
+		retries: []time.Duration{time.Second, 3 * time.Second, 5 * time.Second},
 	}
+}
+
+func (r *Retrier) Init(shouldRetry func(error) bool) {
+	r.attempt = 0
+	r.shouldRetry = shouldRetry
 }
 
 // Возвращает true если следует повторить действие. False - нет ошибки или попытки кончались.

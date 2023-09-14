@@ -9,6 +9,7 @@ import (
 
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/logger"
+	"github.com/k1nky/ypmetrics/internal/retrier"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -19,7 +20,7 @@ type dbStorageTestSuite struct {
 }
 
 func openTestDB() (*DBStorage, error) {
-	db := NewDBStorage(&logger.Blackhole{})
+	db := NewDBStorage(&logger.Blackhole{}, retrier.New())
 	cfg := Config{
 		DSN: "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable",
 	}

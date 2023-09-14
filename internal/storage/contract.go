@@ -11,6 +11,11 @@ type storageLogger interface {
 	Error(template string, args ...interface{})
 }
 
+type storageRetrier interface {
+	Init(func(error) bool)
+	Next(error) bool
+}
+
 //go:generate mockgen -source=contract.go -destination=mock/storage.go -package=mock Storage
 type Storage interface {
 	Open(cfg Config) error

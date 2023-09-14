@@ -10,6 +10,7 @@ import (
 
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/logger"
+	"github.com/k1nky/ypmetrics/internal/retrier"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -52,7 +53,7 @@ func assertMetricsJSONEq(t assert.TestingT, expected string, actual string) {
 }
 
 func (suite *fileStorageTestSuite) SetupTest() {
-	suite.fs = NewFileStorage(&logger.Blackhole{})
+	suite.fs = NewFileStorage(&logger.Blackhole{}, retrier.New())
 	suite.fs.counters = newTestCounters()
 	suite.fs.gauges = newTestGauges()
 }

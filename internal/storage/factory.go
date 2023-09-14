@@ -7,18 +7,19 @@ type Config struct {
 	StoragePath   string
 	StoreInterval time.Duration
 	Restore       bool
+	Retrier       storageRetrier
 }
 
 // NewStorage фабрика хранилищ.
-func NewStorage(cfg Config, l storageLogger) Storage {
+func NewStorage(cfg Config, l storageLogger, retrier storageRetrier) Storage {
 	switch {
 	case len(cfg.DSN) > 0:
-		return NewDBStorage(l)
+		return NewDBStorage(l, retrier)
 	case len(cfg.StoragePath) > 0:
 		if cfg.StoreInterval == 0 {
-			return NewSyncFileStorage(l)
+			return NewSyncFileStorage(l, retrier)
 		}
-		return NewAsyncFileStorage(l)
+		return NewAsyncFileStorage(l, retrier)
 	default:
 		return NewMemStorage()
 	}

@@ -119,7 +119,8 @@ func (c *Client) postData(path string, contentType string, body interface{}) (er
 // запрос будет отправлен повторно.
 func (c *Client) send(request *resty.Request) (response *resty.Response, err error) {
 
-	for r := retrier.New(c.shouldRetry); r.Next(err); {
+	r := retrier.New()
+	for r.Init(c.shouldRetry); r.Next(err); {
 		response, err = request.Send()
 	}
 	return

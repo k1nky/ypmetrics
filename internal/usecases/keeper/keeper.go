@@ -83,7 +83,7 @@ func (k *Keeper) Ping(ctx context.Context) error {
 	cfg := storage.Config{
 		DSN: k.config.DatabaseDSN,
 	}
-	db := storage.NewDBStorage(k.logger)
+	db := storage.NewDBStorage(k.logger, nil)
 	if err := db.Open(cfg); err != nil {
 		return err
 	}

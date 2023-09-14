@@ -53,6 +53,55 @@ func (mr *MockstorageLoggerMockRecorder) Error(template interface{}, args ...int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Error", reflect.TypeOf((*MockstorageLogger)(nil).Error), varargs...)
 }
 
+// MockstorageRetrier is a mock of storageRetrier interface.
+type MockstorageRetrier struct {
+	ctrl     *gomock.Controller
+	recorder *MockstorageRetrierMockRecorder
+}
+
+// MockstorageRetrierMockRecorder is the mock recorder for MockstorageRetrier.
+type MockstorageRetrierMockRecorder struct {
+	mock *MockstorageRetrier
+}
+
+// NewMockstorageRetrier creates a new mock instance.
+func NewMockstorageRetrier(ctrl *gomock.Controller) *MockstorageRetrier {
+	mock := &MockstorageRetrier{ctrl: ctrl}
+	mock.recorder = &MockstorageRetrierMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockstorageRetrier) EXPECT() *MockstorageRetrierMockRecorder {
+	return m.recorder
+}
+
+// Init mocks base method.
+func (m *MockstorageRetrier) Init(arg0 func(error) bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Init", arg0)
+}
+
+// Init indicates an expected call of Init.
+func (mr *MockstorageRetrierMockRecorder) Init(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockstorageRetrier)(nil).Init), arg0)
+}
+
+// Next mocks base method.
+func (m *MockstorageRetrier) Next(arg0 error) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next.
+func (mr *MockstorageRetrierMockRecorder) Next(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockstorageRetrier)(nil).Next), arg0)
+}
+
 // MockStorage is a mock of Storage interface.
 type MockStorage struct {
 	ctrl     *gomock.Controller

@@ -17,6 +17,7 @@ import (
 type FileStorage struct {
 	MemStorage
 	writeLock sync.Mutex
+	retrier   storageRetrier
 	logger    storageLogger
 }
 
@@ -36,26 +37,28 @@ type SyncFileStorage struct {
 // но логика методов становится более ветвистой и тестировать не удобно.
 
 // NewFileStorage возвращает новое файловое хранилище.
-func NewFileStorage(logger storageLogger) *FileStorage {
+func NewFileStorage(logger storageLogger, retrier storageRetrier) *FileStorage {
 	return &FileStorage{
 		MemStorage: MemStorage{
 			counters: make(map[string]*metric.Counter),
 			gauges:   make(map[string]*metric.Gauge),
 		},
-		logger: logger,
+		logger:  logger,
+		retrier: retrier,
 	}
 }
 
 // NewAsyncFileStorage возвращает новое файловое хранилище, сохранение изменений в котором,
 // выполняется асинхронно с заданной периодичностью.
-func NewAsyncFileStorage(logger storageLogger) *AsyncFileStorage {
+func NewAsyncFileStorage(logger storageLogger, retrier storageRetrier) *AsyncFileStorage {
 	return &AsyncFileStorage{
 		FileStorage: FileStorage{
 			MemStorage: MemStorage{
 				counters: make(map[string]*metric.Counter),
 				gauges:   make(map[string]*metric.Gauge),
 			},
-			logger: logger,
+			logger:  logger,
+			retrier: retrier,
 		},
 		stopFlush: make(chan struct{}),
 	}
@@ -63,14 +66,15 @@ func NewAsyncFileStorage(logger storageLogger) *AsyncFileStorage {
 
 // NewSyncFileStorage возвращает новое файловое хранилище, сохранение изменений в котором,
 // выполняется синхронно.
-func NewSyncFileStorage(logger storageLogger) *SyncFileStorage {
+func NewSyncFileStorage(logger storageLogger, retrier storageRetrier) *SyncFileStorage {
 	return &SyncFileStorage{
 		FileStorage: FileStorage{
 			MemStorage: MemStorage{
 				counters: make(map[string]*metric.Counter),
 				gauges:   make(map[string]*metric.Gauge),
 			},
-			logger: logger,
+			logger:  logger,
+			retrier: retrier,
 		},
 	}
 }
@@ -117,7 +121,7 @@ func (fs *FileStorage) Restore(r io.Reader) error {
 // WriteToFile сохраняет метрики в файл. Файл должен быть предварительно открыт.
 func (fs *FileStorage) WriteToFile(f *os.File) error {
 	var err error
-	for r := retrier.New(retrier.AlwaysRetry); r.Next(err); {
+	for fs.retrier.Init(retrier.AlwaysRetry); fs.retrier.Next(err); {
 		err = fs.writeToFile(f)
 		if err != nil {
 			fs.logger.Error("WriteToFile: %v", err)
