@@ -16,11 +16,12 @@ type KeeperConfig struct {
 	StoreIntervalInSec uint       `env:"STORE_INTERVAL"`
 	FileStoragePath    string     `env:"FILE_STORAGE_PATH"`
 	Restore            bool       `env:"RESTORE"`
+	DatabaseDSN        string     `env:"DATABASE_DSN"`
+	LogLevel           string     `env:"LOG_LEVEL"`
 }
 
 const (
 	DefStoreIntervalInSec = 300
-	DefFileStoragePath    = "/tmp/metrics-db.json"
 )
 
 func (cfg KeeperConfig) StorageInterval() time.Duration {
@@ -33,11 +34,13 @@ func parseKeeperConfigFromCmd(c *KeeperConfig) error {
 	address := NetAddress("localhost:8080")
 	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
 	storeInterval := cmd.UintP("store-interval", "i", DefStoreIntervalInSec, "интервал времени в секундах, по истечении которого текущие показания сервера сохраняются на диск (по умолчанию 300 секунд, значение 0 делает запись синхронной).")
-	storagePath := cmd.StringP("storage-path", "f", DefFileStoragePath, "полное имя файла, куда сохраняются текущие значения")
+	storagePath := cmd.StringP("storage-path", "f", "", "полное имя файла, куда сохраняются текущие значения")
 	// для аргумента --restore запрашиваем сначала значение как строку, а потом уже конверитруем в bool
 	// это связано с тем, что формат передачи bool аргументов отличается от требуемого
 	// https://github.com/spf13/pflag/issues/288
 	restore := cmd.StringP("restore", "r", "true", "загружать или нет ранее сохранённые значения из указанного файла при старте сервера")
+	databaseDSN := cmd.StringP("database-dsn", "d", "", "адрес подключения к БД")
+	logLevel := cmd.StringP("log-level", "l", "info", "уровень логирования")
 
 	if err := cmd.Parse(os.Args[1:]); err != nil {
 		return err
@@ -51,6 +54,8 @@ func parseKeeperConfigFromCmd(c *KeeperConfig) error {
 		StoreIntervalInSec: *storeInterval,
 		FileStoragePath:    *storagePath,
 		Restore:            restoreValue,
+		DatabaseDSN:        *databaseDSN,
+		LogLevel:           *logLevel,
 	}
 	return nil
 }

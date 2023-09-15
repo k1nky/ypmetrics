@@ -6,22 +6,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/k1nky/ypmetrics/internal/config"
-	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/handler"
 	"github.com/k1nky/ypmetrics/internal/handler/middleware"
 	"github.com/k1nky/ypmetrics/internal/logger"
+	"github.com/k1nky/ypmetrics/internal/retrier"
 	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
 )
-
-type metricStorage interface {
-	GetCounter(name string) *metric.Counter
-	GetGauge(name string) *metric.Gauge
-	UpdateCounter(name string, value int64)
-	UpdateGauge(name string, value float64)
-	Snapshot(*metric.Metrics)
-	Close() error
-}
 
 func init() {
 	gin.SetMode(gin.ReleaseMode)
@@ -33,19 +24,6 @@ func parseConfig() (config.KeeperConfig, error) {
 	return cfg, err
 }
 
-func openStorage(cfg config.KeeperConfig, log *logger.Logger) (metricStorage, error) {
-	switch {
-	case cfg.StoreIntervalInSec == 0:
-		s := storage.NewSyncFileStorage(log)
-		return s, s.Open(cfg.FileStoragePath, cfg.Restore)
-	case cfg.StoreIntervalInSec > 0:
-		s := storage.NewAsyncFileStorage(log, cfg.StorageInterval())
-		return s, s.Open(cfg.FileStoragePath, cfg.Restore)
-	default:
-		return storage.NewMemStorage(), nil
-	}
-}
-
 func main() {
 	l := logger.New()
 	cfg, err := parseConfig()
@@ -53,17 +31,29 @@ func main() {
 		l.Error("config: %s", err)
 		os.Exit(1)
 	}
+	if err := l.SetLevel(cfg.LogLevel); err != nil {
+		l.Error("config: %s", err)
+		os.Exit(1)
+	}
+	l.Debug("config: %+v", cfg)
+
 	Run(l, cfg)
 }
 
 func Run(l *logger.Logger, cfg config.KeeperConfig) {
-	store, err := openStorage(cfg, l)
-	if err != nil {
+	storeConfig := storage.Config{
+		DSN:           cfg.DatabaseDSN,
+		StoragePath:   cfg.FileStoragePath,
+		StoreInterval: cfg.StorageInterval(),
+		Restore:       cfg.Restore,
+	}
+	store := storage.NewStorage(storeConfig, l, retrier.New())
+	if err := store.Open(storeConfig); err != nil {
 		l.Error("opening storage: %v", err)
 	}
-
 	defer store.Close()
-	uc := keeper.New(store)
+
+	uc := keeper.New(store, cfg, l)
 	h := handler.New(*uc)
 	router := newRouter(h, l)
 
@@ -71,7 +61,6 @@ func Run(l *logger.Logger, cfg config.KeeperConfig) {
 	if err := http.ListenAndServe(cfg.Address.String(), router); err != nil {
 		panic(err)
 	}
-
 }
 
 func newRouter(h handler.Handler, l *logger.Logger) *gin.Engine {
@@ -79,6 +68,8 @@ func newRouter(h handler.Handler, l *logger.Logger) *gin.Engine {
 	router.Use(middleware.Logger(l), middleware.NewGzip([]string{"application/json", "text/html"}).Use())
 
 	router.GET("/", h.AllMetrics())
+	router.GET("/ping", h.Ping())
+	router.POST("/updates/", middleware.RequireContentType("application/json"), h.UpdatesJSON())
 
 	valueRoutes := router.Group("/value")
 	valueRoutes.POST("/", middleware.RequireContentType("application/json"), h.ValueJSON())

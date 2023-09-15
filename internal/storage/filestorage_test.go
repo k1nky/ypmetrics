@@ -2,19 +2,18 @@ package storage
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
 
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
+	"github.com/k1nky/ypmetrics/internal/logger"
+	"github.com/k1nky/ypmetrics/internal/retrier"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
-
-type blackholeLogger struct{}
-
-func (bh *blackholeLogger) Error(template string, args ...interface{}) {}
 
 func newTestCounters() map[string]*metric.Counter {
 	return map[string]*metric.Counter{
@@ -32,8 +31,7 @@ func newTestGauges() map[string]*metric.Gauge {
 
 type fileStorageTestSuite struct {
 	suite.Suite
-	logger storageLogger
-	fs     *FileStorage
+	fs *FileStorage
 }
 
 func assertMetricsJSONEq(t assert.TestingT, expected string, actual string) {
@@ -55,8 +53,7 @@ func assertMetricsJSONEq(t assert.TestingT, expected string, actual string) {
 }
 
 func (suite *fileStorageTestSuite) SetupTest() {
-	suite.logger = &blackholeLogger{}
-	suite.fs = NewFileStorage(suite.logger)
+	suite.fs = NewFileStorage(&logger.Blackhole{}, retrier.New())
 	suite.fs.counters = newTestCounters()
 	suite.fs.gauges = newTestGauges()
 }
@@ -101,14 +98,16 @@ func (suite *fileStorageTestSuite) TestWriteToFile() {
 		suite.T().Errorf("unexpected error = %v", err)
 		return
 	}
+	defer f.Close()
 	if err := suite.fs.WriteToFile(f); err != nil {
 		suite.T().Errorf("unexpected error = %v", err)
 		return
 	}
+	ctx := context.TODO()
 	data, _ := os.ReadFile(filename)
 	want := `{"Counters":[{"Name":"c0","Value":1},{"Name":"c1","Value":15}],"Gauges":[{"Name":"g0","Value":1.1},{"Name":"g1","Value":36.6}]}`
 	assertMetricsJSONEq(suite.T(), want, string(data))
-	suite.fs.UpdateCounter("c2", 20)
+	suite.fs.UpdateCounter(ctx, "c2", 20)
 	if err := suite.fs.WriteToFile(f); err != nil {
 		suite.T().Errorf("unexpected error = %v", err)
 		return

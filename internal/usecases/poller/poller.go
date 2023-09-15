@@ -1,6 +1,7 @@
 package poller
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -13,11 +14,11 @@ type Collector interface {
 }
 
 type metricStorage interface {
-	GetCounter(name string) *metric.Counter
-	GetGauge(name string) *metric.Gauge
-	UpdateCounter(name string, value int64)
-	UpdateGauge(name string, value float64)
-	Snapshot(*metric.Metrics)
+	GetCounter(ctx context.Context, name string) *metric.Counter
+	GetGauge(ctx context.Context, name string) *metric.Gauge
+	UpdateCounter(ctx context.Context, name string, value int64) error
+	UpdateGauge(ctx context.Context, name string, value float64) error
+	Snapshot(ctx context.Context, metrics *metric.Metrics) error
 }
 
 type logger interface {
@@ -27,8 +28,9 @@ type logger interface {
 }
 
 type sender interface {
-	PushCounter(name string, value int64) (err error)
-	PushGauge(name string, value float64) (err error)
+	PushCounter(name string, value int64) error
+	PushGauge(name string, value float64) error
+	PushMetrics(metrics metric.Metrics) error
 }
 
 // Poller представляет собой набор метрик с расширенным функционалом. Он опрашивает сборщиков (Collector)
@@ -57,61 +59,69 @@ func (a *Poller) AddCollector(collectors ...Collector) {
 }
 
 // Run запускает Poller
-func (a Poller) Run() {
-
+func (a Poller) Run(ctx context.Context) {
 	var wg sync.WaitGroup
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		t := time.NewTicker(a.Config.ReportInterval())
 		for {
-			a.logger.Debug("sending updates")
-			if err := a.report(); err != nil {
-				a.logger.Error("report error: %s", err)
+			select {
+			case <-ctx.Done():
+				a.logger.Debug("stop reporting")
+				return
+			case <-t.C:
+				if err := a.sendReport(); err != nil {
+					a.logger.Error("report error: %s", err)
+				}
 			}
-			time.Sleep(a.Config.ReportInterval())
 		}
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		t := time.NewTicker(a.Config.PollInterval())
 		for {
-			for _, collector := range a.collectors {
-				a.logger.Debug("start polling %T", collector)
-				m, err := collector.Collect()
-				if err != nil {
-					a.logger.Error("collector %T: %s", collector, err)
-					continue
-				}
-				if len(m.Counters) != 0 {
-					for _, c := range m.Counters {
-						a.storage.UpdateCounter(c.Name, c.Value)
-					}
-				}
-				if len(m.Gauges) != 0 {
-					for _, g := range m.Gauges {
-						a.storage.UpdateGauge(g.Name, g.Value)
-					}
-				}
+			select {
+			case <-ctx.Done():
+				a.logger.Debug("stop polling")
+				return
+			case <-t.C:
+				a.poll(ctx)
 			}
-			time.Sleep(a.Config.ReportInterval())
 		}
 	}()
+
 	wg.Wait()
 }
 
-func (a Poller) report() error {
-	snap := &metric.Metrics{}
-	a.storage.Snapshot(snap)
-	for _, m := range snap.Counters {
-		if err := a.client.PushCounter(m.Name, m.Value); err != nil {
-			return err
+func (a Poller) poll(ctx context.Context) {
+	for _, collector := range a.collectors {
+		a.logger.Debug("polling %T", collector)
+		m, err := collector.Collect()
+		if err != nil {
+			a.logger.Error("collector %T: %s", collector, err)
+			continue
+		}
+		if len(m.Counters) != 0 {
+			for _, c := range m.Counters {
+				a.storage.UpdateCounter(ctx, c.Name, c.Value)
+			}
+		}
+		if len(m.Gauges) != 0 {
+			for _, g := range m.Gauges {
+				a.storage.UpdateGauge(ctx, g.Name, g.Value)
+			}
 		}
 	}
-	for _, m := range snap.Gauges {
-		if err := a.client.PushGauge(m.Name, m.Value); err != nil {
-			return err
-		}
+}
+
+func (a Poller) sendReport() error {
+	snapshot := &metric.Metrics{}
+	ctx := context.Background()
+	if err := a.storage.Snapshot(ctx, snapshot); err != nil {
+		return err
 	}
-	return nil
+	return a.client.PushMetrics(*snapshot)
 }

@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"sync"
 
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
@@ -22,9 +23,13 @@ func NewMemStorage() *MemStorage {
 	}
 }
 
+func (ms *MemStorage) Open(cfg Config) error {
+	return nil
+}
+
 // GetCounter возвращает метрику Counter по имени name.
 // Будет возвращен nil, если метрика не найдена
-func (ms *MemStorage) GetCounter(name string) *metric.Counter {
+func (ms *MemStorage) GetCounter(ctx context.Context, name string) *metric.Counter {
 	ms.countersLock.RLock()
 	defer ms.countersLock.RUnlock()
 
@@ -36,7 +41,7 @@ func (ms *MemStorage) GetCounter(name string) *metric.Counter {
 
 // GetGauge возвращает метрику Gauge по имени name.
 // Будет возвращен nil, если метрика не найдена
-func (ms *MemStorage) GetGauge(name string) *metric.Gauge {
+func (ms *MemStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 	ms.gaugesLock.RLock()
 	defer ms.gaugesLock.RUnlock()
 
@@ -46,9 +51,9 @@ func (ms *MemStorage) GetGauge(name string) *metric.Gauge {
 	return nil
 }
 
-// SetCounter сохраняет метрику Counter в хранилище
-func (ms *MemStorage) UpdateCounter(name string, value int64) {
-	c := ms.GetCounter(name)
+// UpdateCounter сохраняет метрику Counter в хранилище
+func (ms *MemStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
+	c := ms.GetCounter(ctx, name)
 
 	ms.countersLock.Lock()
 	defer ms.countersLock.Unlock()
@@ -60,11 +65,23 @@ func (ms *MemStorage) UpdateCounter(name string, value int64) {
 	}
 
 	ms.counters[name] = c
+	return nil
 }
 
-// SetGauge сохраняет метрику Gauge в хранилище
-func (ms *MemStorage) UpdateGauge(name string, value float64) {
-	g := ms.GetGauge(name)
+// UpdateMetrics сохраняет метрики в хранилище
+func (ms *MemStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
+	for _, m := range metrics.Counters {
+		ms.UpdateCounter(ctx, m.Name, m.Value)
+	}
+	for _, m := range metrics.Gauges {
+		ms.UpdateGauge(ctx, m.Name, m.Value)
+	}
+	return nil
+}
+
+// UpdateGauge сохраняет метрику Gauge в хранилище
+func (ms *MemStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
+	g := ms.GetGauge(ctx, name)
 
 	ms.gaugesLock.Lock()
 	defer ms.gaugesLock.Unlock()
@@ -76,13 +93,15 @@ func (ms *MemStorage) UpdateGauge(name string, value float64) {
 	}
 
 	ms.gauges[name] = g
+
+	return nil
 }
 
 // Snapshot создает снимок метрик из хранилища
-func (ms *MemStorage) Snapshot(snap *metric.Metrics) {
+func (ms *MemStorage) Snapshot(ctx context.Context, snap *metric.Metrics) error {
 
 	if snap == nil {
-		return
+		return nil
 	}
 
 	snap.Counters = make([]*metric.Counter, 0, len(ms.counters))
@@ -99,6 +118,8 @@ func (ms *MemStorage) Snapshot(snap *metric.Metrics) {
 	for _, v := range ms.gauges {
 		snap.Gauges = append(snap.Gauges, metric.NewGauge(v.Name, v.Value))
 	}
+
+	return nil
 }
 
 func (ms *MemStorage) Close() error {

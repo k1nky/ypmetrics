@@ -43,6 +43,13 @@ func NewGauge(name string, initValue float64) *Gauge {
 	}
 }
 
+func NewMetrics() *Metrics {
+	return &Metrics{
+		Counters: make([]*Counter, 0),
+		Gauges:   make([]*Gauge, 0),
+	}
+}
+
 // GetName возвращает имя метрики
 func (nm namedMetric) GetName() string {
 	return nm.Name

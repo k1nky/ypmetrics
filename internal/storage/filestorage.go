@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
+	"github.com/k1nky/ypmetrics/internal/retrier"
 )
 
 // FileStorage хранит текущие метрики в памяти.
@@ -15,15 +17,14 @@ import (
 type FileStorage struct {
 	MemStorage
 	writeLock sync.Mutex
+	retrier   storageRetrier
 	logger    storageLogger
 }
 
 // AsyncFileStorage хранит текущие метрики в памяти, но периодически сохраняет их в файл.
 type AsyncFileStorage struct {
 	FileStorage
-	flushInterval time.Duration
-	isClosed      bool
-	closeLock     sync.RWMutex
+	stopFlush chan struct{}
 }
 
 // SyncFileStorage хранит текущие метрики в памяти и сохраняет их в файл после каждого изменения.
@@ -36,41 +37,44 @@ type SyncFileStorage struct {
 // но логика методов становится более ветвистой и тестировать не удобно.
 
 // NewFileStorage возвращает новое файловое хранилище.
-func NewFileStorage(logger storageLogger) *FileStorage {
+func NewFileStorage(logger storageLogger, retrier storageRetrier) *FileStorage {
 	return &FileStorage{
 		MemStorage: MemStorage{
 			counters: make(map[string]*metric.Counter),
 			gauges:   make(map[string]*metric.Gauge),
 		},
-		logger: logger,
+		logger:  logger,
+		retrier: retrier,
 	}
 }
 
 // NewAsyncFileStorage возвращает новое файловое хранилище, сохранение изменений в котором,
 // выполняется асинхронно с заданной периодичностью.
-func NewAsyncFileStorage(logger storageLogger, flushInterval time.Duration) *AsyncFileStorage {
+func NewAsyncFileStorage(logger storageLogger, retrier storageRetrier) *AsyncFileStorage {
 	return &AsyncFileStorage{
 		FileStorage: FileStorage{
 			MemStorage: MemStorage{
 				counters: make(map[string]*metric.Counter),
 				gauges:   make(map[string]*metric.Gauge),
 			},
-			logger: logger,
+			logger:  logger,
+			retrier: retrier,
 		},
-		flushInterval: flushInterval,
+		stopFlush: make(chan struct{}),
 	}
 }
 
 // NewSyncFileStorage возвращает новое файловое хранилище, сохранение изменений в котором,
 // выполняется синхронно.
-func NewSyncFileStorage(logger storageLogger) *SyncFileStorage {
+func NewSyncFileStorage(logger storageLogger, retrier storageRetrier) *SyncFileStorage {
 	return &SyncFileStorage{
 		FileStorage: FileStorage{
 			MemStorage: MemStorage{
 				counters: make(map[string]*metric.Counter),
 				gauges:   make(map[string]*metric.Gauge),
 			},
-			logger: logger,
+			logger:  logger,
+			retrier: retrier,
 		},
 	}
 }
@@ -78,7 +82,8 @@ func NewSyncFileStorage(logger storageLogger) *SyncFileStorage {
 // Flush делает срез метрик и сохраняет его в поток
 func (fs *FileStorage) Flush(w io.Writer) error {
 	snap := metric.Metrics{}
-	fs.Snapshot(&snap)
+	ctx := context.Background()
+	fs.Snapshot(ctx, &snap)
 
 	if err := json.NewEncoder(w).Encode(snap); err != nil {
 		return err
@@ -115,6 +120,17 @@ func (fs *FileStorage) Restore(r io.Reader) error {
 
 // WriteToFile сохраняет метрики в файл. Файл должен быть предварительно открыт.
 func (fs *FileStorage) WriteToFile(f *os.File) error {
+	var err error
+	for fs.retrier.Init(retrier.AlwaysRetry); fs.retrier.Next(err); {
+		err = fs.writeToFile(f)
+		if err != nil {
+			fs.logger.Error("WriteToFile: %v", err)
+		}
+	}
+	return err
+}
+
+func (fs *FileStorage) writeToFile(f *os.File) error {
 	fs.writeLock.Lock()
 	defer fs.writeLock.Unlock()
 	if _, err := f.Seek(0, 0); err != nil {
@@ -131,12 +147,7 @@ func (fs *FileStorage) WriteToFile(f *os.File) error {
 
 // Close закрывает асинхронное файловое хранилище
 func (afs *AsyncFileStorage) Close() error {
-	// выставляем флаг, что горутина, в которой периодически сохраняются метрики
-	// должна закрыться
-	// TODO: канал подходит лучше для этой задачи, оставить для будущих спринтов
-	afs.closeLock.Lock()
-	defer afs.closeLock.Unlock()
-	afs.isClosed = true
+	close(afs.stopFlush)
 	return nil
 }
 
@@ -146,25 +157,29 @@ func (sfs *SyncFileStorage) Close() error {
 }
 
 // Open открывает асинхронное файловое хранилище
-func (afs *AsyncFileStorage) Open(filename string, restore bool) error {
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0660)
+func (afs *AsyncFileStorage) Open(cfg Config) error {
+	f, err := os.OpenFile(cfg.StoragePath, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
 		return err
 	}
-	if err := afs.Restore(f); err != nil {
-		afs.logger.Error("Open: %v", err)
+	if cfg.Restore {
+		if err := afs.Restore(f); err != nil {
+			if !os.IsNotExist(err) {
+				afs.logger.Error("Open: %v", err)
+			}
+		}
 	}
 	go func() {
+		t := time.NewTicker(cfg.StoreInterval)
 		defer f.Close()
 		for {
-			time.Sleep(afs.flushInterval)
-			afs.closeLock.RLock()
-			defer afs.closeLock.RUnlock()
-			if afs.isClosed {
+			select {
+			case <-afs.stopFlush:
 				return
-			}
-			if err := afs.WriteToFile(f); err != nil {
-				afs.logger.Error("Flash: %v", err)
+			case <-t.C:
+				if err := afs.WriteToFile(f); err != nil {
+					afs.logger.Error("Flash: %v", err)
+				}
 			}
 		}
 	}()
@@ -172,30 +187,53 @@ func (afs *AsyncFileStorage) Open(filename string, restore bool) error {
 }
 
 // Open открывает синхронное файловое хранилище
-func (sfs *SyncFileStorage) Open(filename string, restore bool) error {
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0660)
+func (sfs *SyncFileStorage) Open(cfg Config) error {
+	f, err := os.OpenFile(cfg.StoragePath, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
 		return err
 	}
-	if err := sfs.Restore(f); err != nil {
-		sfs.logger.Error("Open: %v", err)
+	if cfg.Restore {
+		if err := sfs.Restore(f); err != nil {
+			if !os.IsNotExist(err) {
+				sfs.logger.Error("Open: %v", err)
+			}
+		}
 	}
 	sfs.writer = f
 	return nil
 }
 
 // SetCounter записывает значение метрики типа Counter и сохраняет изменения в файл.
-func (sfs *SyncFileStorage) UpdateCounter(name string, value int64) {
-	sfs.MemStorage.UpdateCounter(name, value)
+func (sfs *SyncFileStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
+	if err := sfs.MemStorage.UpdateCounter(ctx, name, value); err != nil {
+		return err
+	}
 	if err := sfs.WriteToFile(sfs.writer); err != nil {
 		sfs.logger.Error("SetCounter: %v", err)
+		return err
 	}
+	return nil
 }
 
 // SetGauge записывает значение метрики типа Gauge и сохраняет изменения в файл.
-func (sfs *SyncFileStorage) UpdateGauge(name string, value float64) {
-	sfs.MemStorage.UpdateGauge(name, value)
+func (sfs *SyncFileStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
+	if err := sfs.MemStorage.UpdateGauge(ctx, name, value); err != nil {
+		return err
+	}
 	if err := sfs.WriteToFile(sfs.writer); err != nil {
 		sfs.logger.Error("SetGauge: %v", err)
+		return err
 	}
+	return nil
+}
+
+func (sfs *SyncFileStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
+	if err := sfs.MemStorage.UpdateMetrics(ctx, metrics); err != nil {
+		return err
+	}
+	if err := sfs.writeToFile(sfs.writer); err != nil {
+		sfs.logger.Error("SetGauge: %v", err)
+		return err
+	}
+	return nil
 }

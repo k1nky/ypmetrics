@@ -9,18 +9,14 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang/mock/gomock"
+	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
-	"github.com/k1nky/ypmetrics/internal/storage"
+	"github.com/k1nky/ypmetrics/internal/logger"
+	"github.com/k1nky/ypmetrics/internal/storage/mock"
 	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
 	"github.com/stretchr/testify/assert"
 )
-
-func newTestMetrics() storage.Storage {
-	ms := storage.NewMemStorage()
-	ms.UpdateCounter("c1", 10)
-	ms.UpdateGauge("g1", 10.10)
-	return ms
-}
 
 func TestTypeIsValid(t *testing.T) {
 	tests := []struct {
@@ -81,22 +77,6 @@ func TestUpdate(t *testing.T) {
 			},
 		},
 		{
-			name:    "Update counter",
-			request: "/update/counter/c1/1",
-			want: want{
-				statusCode: http.StatusOK,
-				c:          metric.NewCounter("c1", 11),
-			},
-		},
-		{
-			name:    "Update gauge",
-			request: "/update/gauge/g1/10.99",
-			want: want{
-				statusCode: http.StatusOK,
-				g:          metric.NewGauge("g1", 10.99),
-			},
-		},
-		{
 			name:    "Update metric with unsupported value",
 			request: "/update/counter/counter0/10.10",
 			want: want{
@@ -133,8 +113,14 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 	gin.SetMode(gin.TestMode)
-	ms := newTestMetrics()
-	keeper := keeper.New(ms)
+	ctrl := gomock.NewController(t)
+	store := mock.NewMockStorage(ctrl)
+	store.EXPECT().GetCounter(gomock.Any(), "c0").Return(metric.NewCounter("c0", 10))
+	store.EXPECT().GetGauge(gomock.Any(), "g0").Return(metric.NewGauge("g0", 10.10))
+	store.EXPECT().UpdateCounter(gomock.Any(), gomock.Any(), gomock.Any())
+	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any(), gomock.Any())
+
+	keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
 	h := New(*keeper)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -152,9 +138,9 @@ func TestUpdate(t *testing.T) {
 				return
 			}
 			if strings.Contains(tt.request, "/counter/") {
-				assert.Equal(t, tt.want.c, ms.GetCounter(tt.want.c.Name))
+				assert.Equal(t, tt.want.c, store.GetCounter(c.Request.Context(), tt.want.c.Name))
 			} else {
-				assert.Equal(t, tt.want.g, ms.GetGauge(tt.want.g.Name))
+				assert.Equal(t, tt.want.g, store.GetGauge(c.Request.Context(), tt.want.g.Name))
 			}
 		})
 	}
@@ -171,35 +157,19 @@ func TestUpdateJSON(t *testing.T) {
 		want    want
 	}{
 		{
-			name:    "New counter",
-			request: `{"id": "c0", "type": "counter", "delta": 10}`,
-			want: want{
-				statusCode: http.StatusOK,
-				body:       `{"id": "c0", "type": "counter", "delta": 10}`,
-			},
-		},
-		{
 			name:    "Update counter",
-			request: `{"id": "c1", "type": "counter", "delta": 1}`,
+			request: `{"id": "c0", "type": "counter", "delta": 11}`,
 			want: want{
 				statusCode: http.StatusOK,
-				body:       `{"id": "c1", "type": "counter", "delta": 11}`,
-			},
-		},
-		{
-			name:    "New gauge",
-			request: `{"id": "g0", "type": "gauge", "value": 0.1}`,
-			want: want{
-				statusCode: http.StatusOK,
-				body:       `{"id": "g0", "type": "gauge", "value": 0.1}`,
+				body:       `{"id": "c0", "type": "counter", "delta": 11}`,
 			},
 		},
 		{
 			name:    "Update gauge",
-			request: `{"id": "g1", "type": "gauge", "value": 0.1}`,
+			request: `{"id": "g0", "type": "gauge", "value": 0.1}`,
 			want: want{
 				statusCode: http.StatusOK,
-				body:       `{"id": "g1", "type": "gauge", "value": 0.1}`,
+				body:       `{"id": "g0", "type": "gauge", "value": 0.1}`,
 			},
 		},
 		{
@@ -246,8 +216,14 @@ func TestUpdateJSON(t *testing.T) {
 		},
 	}
 
-	ms := newTestMetrics()
-	keeper := keeper.New(ms)
+	ctrl := gomock.NewController(t)
+	store := mock.NewMockStorage(ctrl)
+	store.EXPECT().GetCounter(gomock.Any(), "c0").Return(metric.NewCounter("c0", 11))
+	store.EXPECT().GetGauge(gomock.Any(), "g0").Return(metric.NewGauge("g0", 0.1))
+	store.EXPECT().UpdateCounter(gomock.Any(), gomock.Any(), gomock.Any())
+	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any(), gomock.Any())
+
+	keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
 	h := New(*keeper)
 	gin.SetMode(gin.TestMode)
 
@@ -277,6 +253,7 @@ func TestUpdateJSON(t *testing.T) {
 func TestValue(t *testing.T) {
 	type want struct {
 		statusCode int
+		name       string
 		value      string
 	}
 	tests := []struct {
@@ -286,25 +263,28 @@ func TestValue(t *testing.T) {
 	}{
 		{
 			name:    "Counter",
-			request: "/value/counter/c1",
+			request: "/value/counter/c0",
 			want: want{
 				statusCode: http.StatusOK,
-				value:      "10",
+				name:       "c0",
+				value:      "11",
 			},
 		},
 		{
 			name:    "Gauge",
-			request: "/value/gauge/g1",
+			request: "/value/gauge/g0",
 			want: want{
 				statusCode: http.StatusOK,
-				value:      "10.1",
+				name:       "g0",
+				value:      "0.1",
 			},
 		},
 		{
 			name:    "Metric not exists",
-			request: "/value/gauge/gauge3",
+			request: "/value/gauge/g100",
 			want: want{
 				statusCode: http.StatusNotFound,
+				name:       "g100",
 				value:      "",
 			},
 		},
@@ -313,6 +293,7 @@ func TestValue(t *testing.T) {
 			request: "/value/gauge/c1",
 			want: want{
 				statusCode: http.StatusNotFound,
+				name:       "c1",
 				value:      "",
 			},
 		},
@@ -327,12 +308,24 @@ func TestValue(t *testing.T) {
 	}
 
 	gin.SetMode(gin.TestMode)
-	ms := newTestMetrics()
-	keeper := keeper.New(ms)
-	h := New(*keeper)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			store := mock.NewMockStorage(ctrl)
+			switch tt.want.name {
+			case "c0":
+				store.EXPECT().GetCounter(gomock.Any(), "c0").Return(metric.NewCounter("c0", 11))
+			case "c1":
+				store.EXPECT().GetGauge(gomock.Any(), "c1").Return(nil)
+			case "g0":
+				store.EXPECT().GetGauge(gomock.Any(), "g0").Return(metric.NewGauge("g0", 0.1))
+			case "g100":
+				store.EXPECT().GetGauge(gomock.Any(), "g100").Return(nil)
+			}
+			keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
+			h := New(*keeper)
+
 			w := httptest.NewRecorder()
 			c, r := gin.CreateTestContext(w)
 			c.Request = httptest.NewRequest(http.MethodGet, tt.request, nil)
@@ -356,6 +349,7 @@ func TestValueJSON(t *testing.T) {
 	type want struct {
 		statusCode int
 		value      string
+		name       string
 	}
 	tests := []struct {
 		name    string
@@ -364,18 +358,20 @@ func TestValueJSON(t *testing.T) {
 	}{
 		{
 			name:    "Counter",
-			request: `{"id": "c1", "type": "counter"}`,
+			request: `{"id": "c0", "type": "counter"}`,
 			want: want{
 				statusCode: http.StatusOK,
-				value:      `{"id": "c1", "type": "counter", "delta": 10}`,
+				value:      `{"id": "c0", "type": "counter", "delta": 11}`,
+				name:       "c0",
 			},
 		},
 		{
 			name:    "Gauge",
-			request: `{"id": "g1", "type": "gauge"}`,
+			request: `{"id": "g0", "type": "gauge"}`,
 			want: want{
 				statusCode: http.StatusOK,
-				value:      `{"id": "g1", "type": "gauge", "value": 10.1}`,
+				value:      `{"id": "g0", "type": "gauge", "value": 0.1}`,
+				name:       "g0",
 			},
 		},
 		{
@@ -383,6 +379,7 @@ func TestValueJSON(t *testing.T) {
 			request: `{"id": "g100", "type": "gauge"}`,
 			want: want{
 				statusCode: http.StatusNotFound,
+				name:       "g100",
 			},
 		},
 		{
@@ -390,6 +387,7 @@ func TestValueJSON(t *testing.T) {
 			request: `{"id": "g1", "type": "counter"}`,
 			want: want{
 				statusCode: http.StatusNotFound,
+				name:       "g1",
 			},
 		},
 		{
@@ -402,12 +400,24 @@ func TestValueJSON(t *testing.T) {
 	}
 
 	gin.SetMode(gin.TestMode)
-	ms := newTestMetrics()
-	keeper := keeper.New(ms)
-	h := New(*keeper)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			store := mock.NewMockStorage(ctrl)
+			switch tt.want.name {
+			case "c0":
+				store.EXPECT().GetCounter(gomock.Any(), "c0").Return(metric.NewCounter("c0", 11))
+			case "g1":
+				store.EXPECT().GetCounter(gomock.Any(), "g1").Return(nil)
+			case "g0":
+				store.EXPECT().GetGauge(gomock.Any(), "g0").Return(metric.NewGauge("g0", 0.1))
+			case "g100":
+				store.EXPECT().GetGauge(gomock.Any(), "g100").Return(nil)
+			}
+			keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
+			h := New(*keeper)
+
 			w := httptest.NewRecorder()
 			c, r := gin.CreateTestContext(w)
 			buf := bytes.NewBufferString(tt.request)
@@ -438,9 +448,13 @@ func TestAllMetrics(t *testing.T) {
 		statusCode int
 		value      string
 	}
+
+	ctrl := gomock.NewController(t)
+	store := mock.NewMockStorage(ctrl)
+
 	tests := []struct {
 		name string
-		ms   storage.Storage
+		ms   metric.Metrics
 		want want
 	}{
 		{
@@ -449,7 +463,10 @@ func TestAllMetrics(t *testing.T) {
 				statusCode: http.StatusOK,
 				value:      "c1 = 10\ng1 = 10.1\n",
 			},
-			ms: newTestMetrics(),
+			ms: metric.Metrics{
+				Counters: []*metric.Counter{metric.NewCounter("c1", 10)},
+				Gauges:   []*metric.Gauge{metric.NewGauge("g1", 10.1)},
+			},
 		},
 		{
 			name: "Without values",
@@ -457,7 +474,7 @@ func TestAllMetrics(t *testing.T) {
 				statusCode: http.StatusOK,
 				value:      "",
 			},
-			ms: storage.NewMemStorage(),
+			ms: metric.Metrics{},
 		},
 	}
 
@@ -466,7 +483,8 @@ func TestAllMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, r := gin.CreateTestContext(w)
-			keeper := keeper.New(tt.ms)
+			store.EXPECT().Snapshot(gomock.Any(), gomock.Any()).SetArg(1, tt.ms)
+			keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
 			h := New(*keeper)
 			r.GET("/", h.AllMetrics())
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
@@ -482,6 +500,50 @@ func TestAllMetrics(t *testing.T) {
 				return
 			}
 			assert.ElementsMatch(t, strings.Split(tt.want.value, "\n"), strings.Split(string(body), "\n"))
+		})
+	}
+}
+
+func TestUpdatesJSON(t *testing.T) {
+	type want struct {
+		statusCode int
+	}
+	tests := []struct {
+		name    string
+		request string
+		want    want
+	}{
+		{
+			name:    "Updates",
+			request: `[{"id": "c0", "type": "counter", "delta": 11}, {"id": "g0", "type": "gauge", "value": 1.1}]`,
+			want: want{
+				statusCode: http.StatusOK,
+			},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	store := mock.NewMockStorage(ctrl)
+	store.EXPECT().UpdateMetrics(gomock.Any(), gomock.Any()).Return(nil)
+
+	keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
+	h := New(*keeper)
+	gin.SetMode(gin.TestMode)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, r := gin.CreateTestContext(w)
+			r.POST("/updates/", h.UpdatesJSON())
+			buf := bytes.NewBufferString(tt.request)
+			c.Request = httptest.NewRequest(http.MethodPost, "/updates/", buf)
+			r.ServeHTTP(w, c.Request)
+			result := w.Result()
+			defer result.Body.Close()
+			assert.Equal(t, tt.want.statusCode, result.StatusCode)
+			if result.StatusCode != http.StatusOK {
+				return
+			}
 		})
 	}
 }
