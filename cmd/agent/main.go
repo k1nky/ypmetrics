@@ -31,9 +31,16 @@ func Run(l *logger.Logger, cfg config.PollerConfig) {
 	// для агента храним метрики в памяти
 	store := storage.NewMemStorage()
 	defer store.Close()
+
 	client := apiclient.New(string(cfg.Address))
+	if len(cfg.Key) > 0 {
+		// задан ключ для подписи передаваемых данных
+		client.SetKey(cfg.Key)
+	}
+
 	p := poller.New(cfg, store, l, client)
 	p.AddCollector(collector.PollCounter{}, collector.Random{}, collector.Runtime{})
+
 	ctx, cancel := context.WithCancel(context.TODO())
 	p.Run(ctx)
 	defer cancel()

@@ -40,6 +40,10 @@ func New(url string) *Client {
 		EndpointURL: url,
 		httpclient:  resty.New().SetTimeout(DefaultRequestTimeout),
 	}
+	c.httpclient.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
+		r.SetHeader("Hash", "test")
+		return nil
+	})
 	return c
 }
 
@@ -90,6 +94,10 @@ func (c *Client) PushMetrics(metrics metric.Metrics) (err error) {
 		m = append(m, protocol.Metrics{ID: g.Name, MType: GaugeType, Value: &g.Value})
 	}
 	return c.postData("updates/", "application/json", m)
+}
+
+func (c *Client) SetKey(key string) {
+	c.httpclient.SetPreRequestHook(SignRequestSHA256(key))
 }
 
 // Отправляет POST запрос по пути path с типом контента contentType и телом body
