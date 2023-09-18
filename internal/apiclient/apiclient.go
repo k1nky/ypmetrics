@@ -97,7 +97,8 @@ func (c *Client) PushMetrics(metrics metric.Metrics) (err error) {
 }
 
 func (c *Client) SetKey(key string) {
-	c.httpclient.SetPreRequestHook(SignRequestSHA256(key))
+	seal := NewSeal(key)
+	c.httpclient.SetPreRequestHook(seal.Use())
 }
 
 // Отправляет POST запрос по пути path с типом контента contentType и телом body

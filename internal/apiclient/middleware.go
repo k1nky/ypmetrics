@@ -1,25 +1,48 @@
 package apiclient
 
 import (
-	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
+	"hash"
+	"io"
 	"net/http"
+	"sync"
 
 	"github.com/go-resty/resty/v2"
 )
 
-// https://github.com/go-resty/resty/issues/665
-// https://github.com/go-resty/resty/issues/517
-func SignRequestSHA256(secret string) resty.PreRequestHook {
+type Seal struct {
+	hashers sync.Pool
+}
+
+func NewSeal(secret string) *Seal {
+	return &Seal{
+		hashers: sync.Pool{
+			New: func() any {
+				return hmac.New(sha256.New, []byte(secret))
+			},
+		},
+	}
+}
+
+// Добавляет заголовок HashSHA256 с подписью передаваемых данных по алгоритму sha256.
+//
+//	Лучше для этих целей использовать RequestMiddleware и передавать его в метод OnBeforeRequest,
+//	но в нем в Body лежит interface{} для которого не удобно считать подпись,
+//	а RawRequest.Body будет всегда nil (https://github.com/go-resty/resty/issues/517). Поэтому
+//	используем PreRequestHook, однако в актуальной версии он может быть только один.
+//	https://github.com/go-resty/resty/issues/665
+func (s *Seal) Use() resty.PreRequestHook {
 	return func(c *resty.Client, r *http.Request) error {
-		h := hmac.New(sha256.New, []byte(secret))
-		buf := bytes.Buffer{}
-		buf.ReadFrom(r.Body)
-		if _, err := h.Write(buf.Bytes()); err != nil {
+		h := s.hashers.Get().(hash.Hash)
+		defer s.hashers.Put(h)
+		h.Reset()
+
+		if _, err := io.Copy(h, r.Body); err != nil {
 			return err
 		}
-		r.Header.Set("HashSHA256", string(h.Sum(nil)))
+		r.Header.Set("HashSHA256", hex.EncodeToString(h.Sum(nil)))
 		return nil
 	}
 }
