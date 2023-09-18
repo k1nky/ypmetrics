@@ -18,6 +18,7 @@ type KeeperConfig struct {
 	Restore            bool       `env:"RESTORE"`
 	DatabaseDSN        string     `env:"DATABASE_DSN"`
 	LogLevel           string     `env:"LOG_LEVEL"`
+	Key                string     `env:"KEY"`
 }
 
 const (
@@ -41,6 +42,7 @@ func parseKeeperConfigFromCmd(c *KeeperConfig) error {
 	restore := cmd.StringP("restore", "r", "true", "загружать или нет ранее сохранённые значения из указанного файла при старте сервера")
 	databaseDSN := cmd.StringP("database-dsn", "d", "", "адрес подключения к БД")
 	logLevel := cmd.StringP("log-level", "l", "info", "уровень логирования")
+	key := cmd.StringP("key", "k", "", "ключ хеширования")
 
 	if err := cmd.Parse(os.Args[1:]); err != nil {
 		return err
@@ -56,6 +58,7 @@ func parseKeeperConfigFromCmd(c *KeeperConfig) error {
 		Restore:            restoreValue,
 		DatabaseDSN:        *databaseDSN,
 		LogLevel:           *logLevel,
+		Key:                *key,
 	}
 	return nil
 }

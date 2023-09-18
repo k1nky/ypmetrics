@@ -36,7 +36,7 @@ runagent:
 rundb:
 	docker compose up -d
 
-autotest: autotest1 autotest2 autotest3 autotest4 autotest5 autotest6 autotest7 autotest8 autotest9 autotest10 autotest11 autotest12 autotest13
+autotest: autotest1 autotest2 autotest3 autotest4 autotest5 autotest6 autotest7 autotest8 autotest9 autotest10 autotest11 autotest12 autotest13 autotest14
 
 autotest1: buildserver
 	metricstest -test.v -test.run=^TestIteration1$$ -binary-path=cmd/server/server
@@ -125,4 +125,13 @@ autotest13: buildserver buildagent rundb
 	-binary-path=cmd/server/server \
 	-database-dsn='postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable' \
 	-server-port=8080 \
+	-source-path=.
+
+autotest14: buildserver buildagent rundb
+	SERVER_PORT=8080 ADDRESS="localhost:8080" TEMP_FILE="/tmp/123" metricstest -test.v -test.run=^TestIteration14$$ \
+	-agent-binary-path=cmd/agent/agent \
+	-binary-path=cmd/server/server \
+	-database-dsn='postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable' \
+	-server-port=8080 \
+	-key="supersecret" \
 	-source-path=.

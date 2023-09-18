@@ -11,25 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type bufferWriter struct {
-	gin.ResponseWriter
-	body *bytes.Buffer
-}
-
-func (gz *bufferWriter) WriteString(s string) (int, error) {
-	return gz.Write([]byte(s))
-}
-
-func (gz *bufferWriter) Write(data []byte) (int, error) {
-	gz.Header().Del("Content-Length")
-	return gz.body.Write(data)
-}
-
-func (gz *bufferWriter) WriteHeader(code int) {
-	gz.Header().Del("Content-Length")
-	gz.ResponseWriter.WriteHeader(code)
-}
-
 // shouldCompress определяет требуется ли сжатие тела ответа.
 func (gh *GzipHandler) shouldCompress(request *http.Request, response http.ResponseWriter) bool {
 	if !strings.Contains(request.Header.Get("accept-encoding"), "gzip") {

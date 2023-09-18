@@ -56,6 +56,9 @@ func Run(l *logger.Logger, cfg config.KeeperConfig) {
 	uc := keeper.New(store, cfg, l)
 	h := handler.New(*uc)
 	router := newRouter(h, l)
+	if len(cfg.Key) > 0 {
+		router.Use(middleware.NewSeal(cfg.Key).Use())
+	}
 
 	l.Info("starting on %s", cfg.Address)
 	if err := http.ListenAndServe(cfg.Address.String(), router); err != nil {
