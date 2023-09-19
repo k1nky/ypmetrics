@@ -27,14 +27,19 @@ func NewSeal(key string) *SealHandler {
 	}
 }
 
-func (s *SealHandler) verify(body io.Reader, seal string) (bool, error) {
+func (s *SealHandler) verify(req *http.Request, seal string) (bool, error) {
 	h := s.hashers.Get().(hash.Hash)
 	defer s.hashers.Put(h)
 	h.Reset()
 
-	if _, err := io.Copy(h, body); err != nil {
+	buf := io.TeeReader(req.Body, h)
+	body := bytes.NewBuffer(nil)
+	if _, err := body.ReadFrom(buf); err != nil {
 		return false, err
 	}
+	req.Body.Close()
+	req.Body = io.NopCloser(body)
+
 	got := hex.EncodeToString(h.Sum(nil))
 	return seal == got, nil
 }
@@ -53,7 +58,7 @@ func (s *SealHandler) sign(data []byte) (string, error) {
 func (s *SealHandler) Use() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		if seal := ctx.Request.Header.Get("HashSHA256"); len(seal) > 0 {
-			if valid, err := s.verify(ctx.Request.Body, seal); !valid || err != nil {
+			if valid, err := s.verify(ctx.Request, seal); !valid || err != nil {
 				ctx.AbortWithStatus(http.StatusBadRequest)
 				return
 			}

@@ -55,10 +55,7 @@ func Run(l *logger.Logger, cfg config.KeeperConfig) {
 
 	uc := keeper.New(store, cfg, l)
 	h := handler.New(*uc)
-	router := newRouter(h, l)
-	if len(cfg.Key) > 0 {
-		router.Use(middleware.NewSeal(cfg.Key).Use())
-	}
+	router := newRouter(h, l, cfg.Key)
 
 	l.Info("starting on %s", cfg.Address)
 	if err := http.ListenAndServe(cfg.Address.String(), router); err != nil {
@@ -66,9 +63,13 @@ func Run(l *logger.Logger, cfg config.KeeperConfig) {
 	}
 }
 
-func newRouter(h handler.Handler, l *logger.Logger) *gin.Engine {
+func newRouter(h handler.Handler, l *logger.Logger, key string) *gin.Engine {
 	router := gin.New()
-	router.Use(middleware.Logger(l), middleware.NewGzip([]string{"application/json", "text/html"}).Use())
+	router.Use(middleware.Logger(l))
+	if len(key) > 0 {
+		router.Use(middleware.NewSeal(key).Use())
+	}
+	router.Use(middleware.NewGzip([]string{"application/json", "text/html"}).Use())
 
 	router.GET("/", h.AllMetrics())
 	router.GET("/ping", h.Ping())
