@@ -41,7 +41,7 @@ func parseKeeperConfigFromCmd(c *KeeperConfig) error {
 	// https://github.com/spf13/pflag/issues/288
 	restore := cmd.StringP("restore", "r", "true", "загружать или нет ранее сохранённые значения из указанного файла при старте сервера")
 	databaseDSN := cmd.StringP("database-dsn", "d", "", "адрес подключения к БД")
-	logLevel := cmd.StringP("log-level", "l", "info", "уровень логирования")
+	logLevel := cmd.StringP("log-level", "", "info", "уровень логирования")
 	key := cmd.StringP("key", "k", "", "ключ хеширования")
 
 	if err := cmd.Parse(os.Args[1:]); err != nil {

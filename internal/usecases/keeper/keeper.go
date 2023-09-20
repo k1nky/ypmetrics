@@ -18,7 +18,7 @@ type metricStorage interface {
 }
 
 type logger interface {
-	Error(template string, args ...interface{})
+	Errorf(template string, args ...interface{})
 }
 
 // Keeper представляет собой набор метрик. В текущей реализации представляет

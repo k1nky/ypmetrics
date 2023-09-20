@@ -3,6 +3,7 @@ package apiclient
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -22,8 +23,14 @@ const (
 )
 
 var (
-	ErrUnexpectedStatusCode = errors.New("unexpected status code, want 200")
+	ErrUnexpectedResponse = errors.New("unexpected response")
 )
+
+type clientLogger interface {
+	Errorf(string, ...interface{})
+	Debugf(string, ...interface{})
+	Warnf(string, ...interface{})
+}
 
 // Client клиент для сервера сбора метрик
 type Client struct {
@@ -34,15 +41,15 @@ type Client struct {
 }
 
 // New возвращает нового клиента для сервера сбора метрик
-func New(url string) *Client {
+func New(url string, l clientLogger) *Client {
 	if !strings.HasPrefix(url, "http") {
 		url = "http://" + url
 	}
 	cli := &Client{
 		EndpointURL: url,
-		httpclient:  resty.New().SetTimeout(DefaultRequestTimeout),
+		httpclient:  resty.New().SetTimeout(DefaultRequestTimeout).SetLogger(l),
 		// по умолчанию используем сжатие запросов
-		middlewares: []resty.PreRequestHook{middleware.NewGzip().Use()},
+		middlewares: []resty.PreRequestHook{},
 	}
 
 	//	В качестве middleware в resty предлагается использовать RequestMiddleware с методом OnBeforeRequest.
@@ -114,9 +121,16 @@ func (c *Client) PushMetrics(metrics metric.Metrics) (err error) {
 
 // SetKey задает ключ подписи отправляемых данных. Указание ключа приводит к тому, что
 // в запрос с данными будет автоматически добавляться подпись.
-func (c *Client) SetKey(key string) {
-	seal := middleware.NewSeal(key)
-	c.middlewares = append(c.middlewares, seal.Use())
+func (c *Client) SetKey(key string) *Client {
+	if len(key) > 0 {
+		c.middlewares = append(c.middlewares, middleware.NewSeal(key).Use())
+	}
+	return c
+}
+
+func (c *Client) SetGzip() *Client {
+	c.middlewares = append(c.middlewares, middleware.NewGzip().Use())
+	return c
 }
 
 // Отправляет POST запрос по пути path с типом контента contentType и телом body
@@ -137,7 +151,7 @@ func (c *Client) postData(path string, contentType string, body interface{}) (er
 	}
 	// код ответа отличный от 200 не будем считать ошибкой отправки данных
 	if resp.StatusCode() != http.StatusOK {
-		return ErrUnexpectedStatusCode
+		return fmt.Errorf("status %d %s: %w", resp.StatusCode(), resp.String(), ErrUnexpectedResponse)
 	}
 	return nil
 }

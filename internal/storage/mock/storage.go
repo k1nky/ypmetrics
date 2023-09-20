@@ -36,21 +36,21 @@ func (m *MockstorageLogger) EXPECT() *MockstorageLoggerMockRecorder {
 	return m.recorder
 }
 
-// Error mocks base method.
-func (m *MockstorageLogger) Error(template string, args ...interface{}) {
+// Errorf mocks base method.
+func (m *MockstorageLogger) Errorf(template string, args ...interface{}) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{template}
 	for _, a := range args {
 		varargs = append(varargs, a)
 	}
-	m.ctrl.Call(m, "Error", varargs...)
+	m.ctrl.Call(m, "Errorf", varargs...)
 }
 
-// Error indicates an expected call of Error.
-func (mr *MockstorageLoggerMockRecorder) Error(template interface{}, args ...interface{}) *gomock.Call {
+// Errorf indicates an expected call of Errorf.
+func (mr *MockstorageLoggerMockRecorder) Errorf(template interface{}, args ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{template}, args...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Error", reflect.TypeOf((*MockstorageLogger)(nil).Error), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Errorf", reflect.TypeOf((*MockstorageLogger)(nil).Errorf), varargs...)
 }
 
 // MockstorageRetrier is a mock of storageRetrier interface.

@@ -22,9 +22,9 @@ type metricStorage interface {
 }
 
 type logger interface {
-	Debug(template string, args ...interface{})
-	Info(template string, args ...interface{})
-	Error(template string, args ...interface{})
+	Debugf(template string, args ...interface{})
+	Infof(template string, args ...interface{})
+	Errorf(template string, args ...interface{})
 }
 
 type sender interface {
@@ -69,11 +69,11 @@ func (a Poller) Run(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
-				a.logger.Debug("stop reporting")
+				a.logger.Debugf("stop reporting")
 				return
 			case <-t.C:
 				if err := a.sendReport(); err != nil {
-					a.logger.Error("report error: %s", err)
+					a.logger.Errorf("report error: %s", err)
 				}
 			}
 		}
@@ -85,7 +85,7 @@ func (a Poller) Run(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
-				a.logger.Debug("stop polling")
+				a.logger.Debugf("stop polling")
 				return
 			case <-t.C:
 				a.poll(ctx)
@@ -98,10 +98,10 @@ func (a Poller) Run(ctx context.Context) {
 
 func (a Poller) poll(ctx context.Context) {
 	for _, collector := range a.collectors {
-		a.logger.Debug("polling %T", collector)
+		a.logger.Debugf("polling %T", collector)
 		m, err := collector.Collect()
 		if err != nil {
-			a.logger.Error("collector %T: %s", collector, err)
+			a.logger.Errorf("collector %T: %s", collector, err)
 			continue
 		}
 		if len(m.Counters) != 0 {

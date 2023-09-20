@@ -29,7 +29,7 @@ func TestParse(t *testing.T) {
 		},
 		{
 			name:   "With argument",
-			osargs: []string{"server", "-a", ":8090", "-r", "30", "-p", "10", "-l", "error", "-k", "secret"},
+			osargs: []string{"server", "-a", ":8090", "-r", "30", "-p", "10", "--log-level", "error", "-k", "secret"},
 			env:    map[string]string{},
 			want: PollerConfig{
 				Address:             "localhost:8090",

@@ -124,7 +124,7 @@ func (fs *FileStorage) WriteToFile(f *os.File) error {
 	for fs.retrier.Init(retrier.AlwaysRetry); fs.retrier.Next(err); {
 		err = fs.writeToFile(f)
 		if err != nil {
-			fs.logger.Error("WriteToFile: %v", err)
+			fs.logger.Errorf("WriteToFile: %v", err)
 		}
 	}
 	return err
@@ -165,7 +165,7 @@ func (afs *AsyncFileStorage) Open(cfg Config) error {
 	if cfg.Restore {
 		if err := afs.Restore(f); err != nil {
 			if !os.IsNotExist(err) {
-				afs.logger.Error("Open: %v", err)
+				afs.logger.Errorf("Open: %v", err)
 			}
 		}
 	}
@@ -178,7 +178,7 @@ func (afs *AsyncFileStorage) Open(cfg Config) error {
 				return
 			case <-t.C:
 				if err := afs.WriteToFile(f); err != nil {
-					afs.logger.Error("Flash: %v", err)
+					afs.logger.Errorf("Flash: %v", err)
 				}
 			}
 		}
@@ -195,7 +195,7 @@ func (sfs *SyncFileStorage) Open(cfg Config) error {
 	if cfg.Restore {
 		if err := sfs.Restore(f); err != nil {
 			if !os.IsNotExist(err) {
-				sfs.logger.Error("Open: %v", err)
+				sfs.logger.Errorf("Open: %v", err)
 			}
 		}
 	}
@@ -209,7 +209,7 @@ func (sfs *SyncFileStorage) UpdateCounter(ctx context.Context, name string, valu
 		return err
 	}
 	if err := sfs.WriteToFile(sfs.writer); err != nil {
-		sfs.logger.Error("SetCounter: %v", err)
+		sfs.logger.Errorf("SetCounter: %v", err)
 		return err
 	}
 	return nil
@@ -221,7 +221,7 @@ func (sfs *SyncFileStorage) UpdateGauge(ctx context.Context, name string, value 
 		return err
 	}
 	if err := sfs.WriteToFile(sfs.writer); err != nil {
-		sfs.logger.Error("SetGauge: %v", err)
+		sfs.logger.Errorf("SetGauge: %v", err)
 		return err
 	}
 	return nil
@@ -232,7 +232,7 @@ func (sfs *SyncFileStorage) UpdateMetrics(ctx context.Context, metrics metric.Me
 		return err
 	}
 	if err := sfs.writeToFile(sfs.writer); err != nil {
-		sfs.logger.Error("SetGauge: %v", err)
+		sfs.logger.Errorf("SetGauge: %v", err)
 		return err
 	}
 	return nil
