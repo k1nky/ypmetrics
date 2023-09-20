@@ -39,7 +39,12 @@ func Run(l *logger.Logger, cfg config.PollerConfig) {
 	}
 
 	p := poller.New(cfg, store, l, client)
-	p.AddCollector(collector.PollCounter{}, collector.Random{}, collector.Runtime{})
+	p.AddCollector(
+		collector.PollCounter{},
+		collector.Random{},
+		collector.Runtime{},
+		collector.Gops{},
+	)
 
 	ctx, cancel := context.WithCancel(context.TODO())
 	p.Run(ctx)
