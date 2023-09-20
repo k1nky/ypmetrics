@@ -9,7 +9,6 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
 	github.com/jackc/pgx/v5 v5.4.3
-	github.com/lib/pq v1.10.9
 	github.com/mailru/easyjson v0.7.7
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.4

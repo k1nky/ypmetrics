@@ -24,12 +24,13 @@ func TestParse(t *testing.T) {
 				ReportIntervalInSec: DefReportIntervalInSec,
 				PollIntervalInSec:   DefPollIntervalInSec,
 				LogLevel:            "info",
+				RateLimit:           0,
 			},
 			wantErr: false,
 		},
 		{
 			name:   "With argument",
-			osargs: []string{"server", "-a", ":8090", "-r", "30", "-p", "10", "-l", "error", "-k", "secret"},
+			osargs: []string{"server", "-a", ":8090", "-r", "30", "-p", "10", "--log-level", "error", "-k", "secret", "-l", "12"},
 			env:    map[string]string{},
 			want: PollerConfig{
 				Address:             "localhost:8090",
@@ -37,6 +38,7 @@ func TestParse(t *testing.T) {
 				PollIntervalInSec:   10,
 				LogLevel:            "error",
 				Key:                 "secret",
+				RateLimit:           12,
 			},
 			wantErr: false,
 		},
@@ -49,6 +51,7 @@ func TestParse(t *testing.T) {
 				"POLL_INTERVAL":   "10",
 				"LOG_LEVEL":       "debug",
 				"KEY":             "secret",
+				"RATE_LIMIT":      "12",
 			},
 			want: PollerConfig{
 				Address:             "127.0.0.1:9000",
@@ -56,6 +59,7 @@ func TestParse(t *testing.T) {
 				PollIntervalInSec:   10,
 				LogLevel:            "debug",
 				Key:                 "secret",
+				RateLimit:           12,
 			},
 			wantErr: false,
 		},

@@ -32,7 +32,7 @@ func TestParseFlags(t *testing.T) {
 		},
 		{
 			name:   "With argument",
-			osargs: []string{"server", "-a", ":8090", "-i", "10", "-r", "false", "-f", "/tmp/123", "-d", "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable", "-l", "error", "-k", "mysecret"},
+			osargs: []string{"server", "-a", ":8090", "-i", "10", "-r", "false", "-f", "/tmp/123", "-d", "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable", "--log-level", "error", "-k", "mysecret"},
 			env:    map[string]string{},
 			want: KeeperConfig{
 				Address:            "localhost:8090",
