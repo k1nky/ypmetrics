@@ -97,24 +97,30 @@ func (a Poller) Run(ctx context.Context) {
 }
 
 func (a Poller) poll(ctx context.Context) {
+	wg := sync.WaitGroup{}
+	wg.Add(len(a.collectors))
 	for _, collector := range a.collectors {
-		a.logger.Debug("polling %T", collector)
-		m, err := collector.Collect()
-		if err != nil {
-			a.logger.Error("collector %T: %s", collector, err)
-			continue
-		}
-		if len(m.Counters) != 0 {
-			for _, c := range m.Counters {
-				a.storage.UpdateCounter(ctx, c.Name, c.Value)
+		go func(collector Collector) {
+			defer wg.Done()
+			a.logger.Debug("polling %T", collector)
+			m, err := collector.Collect()
+			if err != nil {
+				a.logger.Error("collector %T: %s", collector, err)
+				return
 			}
-		}
-		if len(m.Gauges) != 0 {
-			for _, g := range m.Gauges {
-				a.storage.UpdateGauge(ctx, g.Name, g.Value)
+			if len(m.Counters) != 0 {
+				for _, c := range m.Counters {
+					a.storage.UpdateCounter(ctx, c.Name, c.Value)
+				}
 			}
-		}
+			if len(m.Gauges) != 0 {
+				for _, g := range m.Gauges {
+					a.storage.UpdateGauge(ctx, g.Name, g.Value)
+				}
+			}
+		}(collector)
 	}
+	wg.Wait()
 }
 
 func (a Poller) sendReport() error {
