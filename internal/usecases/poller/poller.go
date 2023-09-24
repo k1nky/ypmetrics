@@ -2,16 +2,10 @@ package poller
 
 import (
 	"context"
-	"sync"
-	"time"
 
 	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
-
-type Collector interface {
-	Collect() (metric.Metrics, error)
-}
 
 type metricStorage interface {
 	GetCounter(ctx context.Context, name string) *metric.Counter
@@ -46,88 +40,22 @@ type Poller struct {
 // New возвращает нового Poller для сбора метрик. По умолчанию в качестве хранилища используется MemStorage.
 func New(cfg config.PollerConfig, store metricStorage, log logger, client sender) *Poller {
 	return &Poller{
-		client:  client,
-		logger:  log,
-		storage: store,
-		Config:  cfg,
+		client:     client,
+		logger:     log,
+		storage:    store,
+		Config:     cfg,
+		collectors: make([]Collector, 0),
 	}
 }
 
-// AddCollector добавляет совместимый сборщик для получения метрик.
-func (a *Poller) AddCollector(collectors ...Collector) {
-	a.collectors = append(a.collectors, collectors...)
+func (p *Poller) AddCollector(c ...Collector) {
+	p.collectors = append(p.collectors, c...)
 }
 
 // Run запускает Poller
-func (a Poller) Run(ctx context.Context) {
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		t := time.NewTicker(a.Config.ReportInterval())
-		for {
-			select {
-			case <-ctx.Done():
-				a.logger.Debug("stop reporting")
-				return
-			case <-t.C:
-				if err := a.sendReport(); err != nil {
-					a.logger.Error("report error: %s", err)
-				}
-			}
-		}
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		t := time.NewTicker(a.Config.PollInterval())
-		for {
-			select {
-			case <-ctx.Done():
-				a.logger.Debug("stop polling")
-				return
-			case <-t.C:
-				a.poll(ctx)
-			}
-		}
-	}()
-
-	wg.Wait()
-}
-
-func (a Poller) poll(ctx context.Context) {
-	wg := sync.WaitGroup{}
-	wg.Add(len(a.collectors))
-	for _, collector := range a.collectors {
-		go func(collector Collector) {
-			defer wg.Done()
-			a.logger.Debug("polling %T", collector)
-			m, err := collector.Collect()
-			if err != nil {
-				a.logger.Error("collector %T: %s", collector, err)
-				return
-			}
-			if len(m.Counters) != 0 {
-				for _, c := range m.Counters {
-					a.storage.UpdateCounter(ctx, c.Name, c.Value)
-				}
-			}
-			if len(m.Gauges) != 0 {
-				for _, g := range m.Gauges {
-					a.storage.UpdateGauge(ctx, g.Name, g.Value)
-				}
-			}
-		}(collector)
-	}
-	wg.Wait()
-}
-
-func (a Poller) sendReport() error {
-	snapshot := &metric.Metrics{}
-	ctx := context.Background()
-	if err := a.storage.Snapshot(ctx, snapshot); err != nil {
-		return err
-	}
-	return a.client.PushMetrics(*snapshot)
+func (p Poller) Run(ctx context.Context) {
+	p.report(ctx, 3)
+	metrics := p.poll(ctx, 3)
+	p.storeWorker(ctx, metrics)
+	<-ctx.Done()
 }
