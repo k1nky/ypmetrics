@@ -16,14 +16,14 @@ func main() {
 	l := logger.New()
 	cfg := config.PollerConfig{}
 	if err := config.ParsePollerConfig(&cfg); err != nil {
-		l.Error("config: %s", err)
+		l.Errorf("config: %s", err)
 		os.Exit(1)
 	}
 	if err := l.SetLevel(cfg.LogLevel); err != nil {
-		l.Error("config: %s", err)
+		l.Errorf("config: %s", err)
 		os.Exit(1)
 	}
-	l.Debug("config: %+v", cfg)
+	l.Debugf("config: %+v", cfg)
 	Run(l, cfg)
 }
 
@@ -32,11 +32,9 @@ func Run(l *logger.Logger, cfg config.PollerConfig) {
 	store := storage.NewMemStorage()
 	defer store.Close()
 
-	client := apiclient.New(string(cfg.Address))
-	if len(cfg.Key) > 0 {
-		// задан ключ для подписи передаваемых данных
-		client.SetKey(cfg.Key)
-	}
+	client := apiclient.New(string(cfg.Address), l)
+	// сначала сжимаем данные, затем подписываем
+	client.SetGzip().SetKey(cfg.Key)
 
 	p := poller.New(cfg, store, l, client)
 	p.AddCollector(

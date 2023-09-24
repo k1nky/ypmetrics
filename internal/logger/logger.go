@@ -46,14 +46,18 @@ func (l *Logger) SetLevel(level string) error {
 	return nil
 }
 
-func (l *Logger) Debug(template string, args ...interface{}) {
+func (l *Logger) Debugf(template string, args ...interface{}) {
 	l.zapLogger.Debug(fmt.Sprintf(template, args...))
 }
 
-func (l *Logger) Info(template string, args ...interface{}) {
+func (l *Logger) Infof(template string, args ...interface{}) {
 	l.zapLogger.Info(fmt.Sprintf(template, args...))
 }
 
-func (l *Logger) Error(template string, args ...interface{}) {
+func (l *Logger) Errorf(template string, args ...interface{}) {
 	l.zapLogger.Error(fmt.Sprintf(template, args...))
+}
+
+func (l *Logger) Warnf(template string, args ...interface{}) {
+	l.zapLogger.Warn(fmt.Sprintf(template, args...))
 }

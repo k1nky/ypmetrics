@@ -28,14 +28,14 @@ func main() {
 	l := logger.New()
 	cfg, err := parseConfig()
 	if err != nil {
-		l.Error("config: %s", err)
+		l.Errorf("config: %s", err)
 		os.Exit(1)
 	}
 	if err := l.SetLevel(cfg.LogLevel); err != nil {
-		l.Error("config: %s", err)
+		l.Errorf("config: %s", err)
 		os.Exit(1)
 	}
-	l.Debug("config: %+v", cfg)
+	l.Debugf("config: %+v", cfg)
 
 	Run(l, cfg)
 }
@@ -49,26 +49,30 @@ func Run(l *logger.Logger, cfg config.KeeperConfig) {
 	}
 	store := storage.NewStorage(storeConfig, l, retrier.New())
 	if err := store.Open(storeConfig); err != nil {
-		l.Error("opening storage: %v", err)
+		l.Errorf("opening storage: %v", err)
 	}
 	defer store.Close()
 
 	uc := keeper.New(store, cfg, l)
 	h := handler.New(*uc)
-	router := newRouter(h, l)
-	if len(cfg.Key) > 0 {
-		router.Use(middleware.NewSeal(cfg.Key).Use())
-	}
+	router := newRouter(h, l, cfg.Key)
 
-	l.Info("starting on %s", cfg.Address)
+	l.Infof("starting on %s", cfg.Address)
 	if err := http.ListenAndServe(cfg.Address.String(), router); err != nil {
 		panic(err)
 	}
 }
 
-func newRouter(h handler.Handler, l *logger.Logger) *gin.Engine {
+func newRouter(h handler.Handler, l *logger.Logger, key string) *gin.Engine {
 	router := gin.New()
-	router.Use(middleware.Logger(l), middleware.NewGzip([]string{"application/json", "text/html"}).Use())
+	// логируем запрос
+	router.Use(middleware.Logger(l))
+	if len(key) > 0 {
+		// если указан ключ, то проверяем подпись полученных данных
+		router.Use(middleware.NewSeal(key).Use())
+	}
+	// при необходимости разпаковываем данные
+	router.Use(middleware.NewGzip([]string{"application/json", "text/html"}).Use())
 
 	router.GET("/", h.AllMetrics())
 	router.GET("/ping", h.Ping())

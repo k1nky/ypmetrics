@@ -9,7 +9,7 @@ import (
 )
 
 type requestLogger interface {
-	Info(template string, args ...interface{})
+	Infof(template string, args ...interface{})
 }
 
 // Logger это middleware для  логирования запросов и ответов
@@ -22,7 +22,7 @@ func Logger(l requestLogger) gin.HandlerFunc {
 		if size < 0 {
 			size = 0
 		}
-		l.Info("%s %s status %d size %d duration %s", ctx.Request.Method, ctx.Request.RequestURI, ctx.Writer.Status(), size, time.Since(start))
+		l.Infof("%s %s status %d size %d duration %s", ctx.Request.Method, ctx.Request.RequestURI, ctx.Writer.Status(), size, time.Since(start))
 	}
 }
 
@@ -41,6 +41,6 @@ func LoggerWithBody(l requestLogger) gin.HandlerFunc {
 		if size < 0 {
 			size = 0
 		}
-		l.Info("%s %s status %d size %d duration %s %s", ctx.Request.Method, ctx.Request.RequestURI, ctx.Writer.Status(), size, time.Since(start), body)
+		l.Infof("%s %s status %d size %d duration %s %s", ctx.Request.Method, ctx.Request.RequestURI, ctx.Writer.Status(), size, time.Since(start), body)
 	}
 }

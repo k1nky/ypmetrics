@@ -45,10 +45,10 @@ func (p Poller) pollWorker(id int, jobs <-chan Collector, result chan<- metric.M
 		if !ok {
 			break
 		}
-		p.logger.Debug("worker #%d starts polling %T", id, job)
+		p.logger.Debugf("worker #%d starts polling %T", id, job)
 		m, err := job.Collect()
 		if err != nil {
-			p.logger.Error("poll worker #%d: %s", id, err)
+			p.logger.Errorf("poll worker #%d: %s", id, err)
 		} else {
 			result <- m
 		}
@@ -91,7 +91,7 @@ func (p Poller) report(ctx context.Context, maxWorkers int) {
 			case <-t.C:
 				snapshot := &metric.Metrics{}
 				if err := p.storage.Snapshot(ctx, snapshot); err != nil {
-					p.logger.Error("report: %s", err)
+					p.logger.Errorf("report: %s", err)
 					continue
 				}
 				if p.Config.RateLimit == 0 {
@@ -124,7 +124,7 @@ func (p Poller) reportWorker(ctx context.Context, id int, metrics <-chan metric.
 					return
 				}
 				if err := p.client.PushMetrics(m); err != nil {
-					p.logger.Error("report worker #%d: %s", id, err)
+					p.logger.Errorf("report worker #%d: %s", id, err)
 				}
 			}
 		}

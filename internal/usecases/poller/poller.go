@@ -16,9 +16,9 @@ type metricStorage interface {
 }
 
 type logger interface {
-	Debug(template string, args ...interface{})
-	Info(template string, args ...interface{})
-	Error(template string, args ...interface{})
+	Debugf(template string, args ...interface{})
+	Infof(template string, args ...interface{})
+	Errorf(template string, args ...interface{})
 }
 
 type sender interface {
