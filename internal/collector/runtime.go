@@ -1,14 +1,16 @@
 package collector
 
 import (
+	"context"
 	"runtime"
 
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
 
+// Сборщик метрик из пакета runtime
 type Runtime struct{}
 
-func (rc Runtime) Collect() (metric.Metrics, error) {
+func (rc *Runtime) Collect(ctx context.Context) (metric.Metrics, error) {
 	memStat := &runtime.MemStats{}
 	runtime.ReadMemStats(memStat)
 	return metric.Metrics{
