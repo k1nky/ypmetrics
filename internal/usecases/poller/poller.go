@@ -22,7 +22,7 @@ type Poller struct {
 type contextKey int
 
 const (
-	keyWorkerId contextKey = iota
+	keyWorkerID contextKey = iota
 )
 
 const (
@@ -72,7 +72,7 @@ func (p Poller) poll(ctx context.Context, maxWorkers int) chan metric.Metrics {
 		go func(id int) {
 			// запускаем очередной воркер сбора метрик
 			// у каждого воркера свой канал, в который отправляются собранные метрики
-			ch := p.pollWorker(context.WithValue(ctx, keyWorkerId, id), jobs)
+			ch := p.pollWorker(context.WithValue(ctx, keyWorkerID, id), jobs)
 			for {
 				select {
 				case <-ctx.Done():
@@ -112,7 +112,7 @@ func (p Poller) poll(ctx context.Context, maxWorkers int) chan metric.Metrics {
 func (p Poller) pollWorker(ctx context.Context, jobs <-chan Collector) chan metric.Metrics {
 	result := make(chan metric.Metrics)
 	go func() {
-		id := ctx.Value(keyWorkerId).(int)
+		id := ctx.Value(keyWorkerID).(int)
 		for {
 			job, ok := <-jobs
 			if !ok {
@@ -149,7 +149,7 @@ func (p Poller) report(ctx context.Context, maxWorkers int) {
 
 	for i := 1; i <= maxWorkers; i++ {
 		// запускаем воркеры для отправки метрик
-		p.reportWorker(context.WithValue(ctx, keyWorkerId, i), metrics)
+		p.reportWorker(context.WithValue(ctx, keyWorkerID, i), metrics)
 	}
 	go func() {
 		t := time.NewTicker(p.Config.ReportInterval())
@@ -188,7 +188,7 @@ func (p Poller) report(ctx context.Context, maxWorkers int) {
 
 func (p Poller) reportWorker(ctx context.Context, metrics <-chan metric.Metrics) {
 	go func() {
-		id := ctx.Value(keyWorkerId).(int)
+		id := ctx.Value(keyWorkerID).(int)
 		for {
 			select {
 			case <-ctx.Done():

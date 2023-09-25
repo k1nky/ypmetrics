@@ -50,7 +50,9 @@ func TestSealVerify(t *testing.T) {
 			c.Request.Header.Set("HashSHA256", tt.hashValue)
 		}
 		r.ServeHTTP(w, c.Request)
-		assert.Equal(t, tt.wantStatus, w.Result().StatusCode, tt.name)
+		result := w.Result()
+		defer result.Body.Close()
+		assert.Equal(t, tt.wantStatus, result.StatusCode, tt.name)
 	}
 }
 
@@ -64,6 +66,8 @@ func TestSealResponse(t *testing.T) {
 	})
 	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
 	r.ServeHTTP(w, c.Request)
-	assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+	result := w.Result()
+	defer result.Body.Close()
+	assert.Equal(t, http.StatusOK, result.StatusCode)
 	assert.Equal(t, "88aab3ede8d3adf94d26ab90d3bafd4a2083070c3bcce9c014ee04a443847c0b", w.Header().Get("HashSHA256"))
 }
