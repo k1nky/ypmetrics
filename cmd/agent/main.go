@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/k1nky/ypmetrics/internal/apiclient"
 	"github.com/k1nky/ypmetrics/internal/collector"
@@ -38,13 +41,14 @@ func Run(l *logger.Logger, cfg config.PollerConfig) {
 
 	p := poller.New(cfg, store, l, client)
 	p.AddCollector(
-		collector.PollCounter{},
-		collector.Random{},
-		collector.Runtime{},
-		collector.Gops{},
+		&collector.PollCounter{},
+		&collector.Random{},
+		&collector.Runtime{},
+		&collector.Gops{},
 	)
 
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	p.Run(ctx)
-	defer cancel()
+	<-ctx.Done()
+	time.Sleep(time.Second)
 }
