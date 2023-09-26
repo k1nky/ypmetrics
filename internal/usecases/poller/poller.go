@@ -62,7 +62,7 @@ func (p Poller) Run(ctx context.Context) {
 
 // Создает и запускает maxWorkers воркеров для опроса сборщиков метрик.
 // Собранные метрики передаются через возвращаемый канал по мере поступления.
-func (p Poller) poll(ctx context.Context, maxWorkers int) chan metric.Metrics {
+func (p Poller) poll(ctx context.Context, maxWorkers int) <-chan metric.Metrics {
 	// возвращаемый канал с получаемыми метриками от сборщиков
 	result := make(chan metric.Metrics, len(p.collectors))
 	// задания для воркеров сбора метрик
@@ -90,6 +90,7 @@ func (p Poller) poll(ctx context.Context, maxWorkers int) chan metric.Metrics {
 	}
 	go func() {
 		t := time.NewTicker(p.Config.PollInterval())
+		defer t.Stop()
 		for {
 			select {
 			case <-ctx.Done():
@@ -109,15 +110,12 @@ func (p Poller) poll(ctx context.Context, maxWorkers int) chan metric.Metrics {
 }
 
 // Воркер опроса сборщиков метрик
-func (p Poller) pollWorker(ctx context.Context, jobs <-chan Collector) chan metric.Metrics {
+func (p Poller) pollWorker(ctx context.Context, jobs <-chan Collector) <-chan metric.Metrics {
 	result := make(chan metric.Metrics)
 	go func() {
+		defer close(result)
 		id := ctx.Value(keyWorkerID).(int)
-		for {
-			job, ok := <-jobs
-			if !ok {
-				break
-			}
+		for job := range jobs {
 			p.logger.Debugf("poll worker #%d: poll %T", id, job)
 			m, err := job.Collect(ctx)
 			if err != nil {
@@ -131,13 +129,9 @@ func (p Poller) pollWorker(ctx context.Context, jobs <-chan Collector) chan metr
 }
 
 // Воркер сохранения метрик из канала
-func (p Poller) storeWorker(ctx context.Context, metrics chan metric.Metrics) {
+func (p Poller) storeWorker(ctx context.Context, metrics <-chan metric.Metrics) {
 	go func() {
-		for {
-			m, ok := <-metrics
-			if !ok {
-				return
-			}
+		for m := range metrics {
 			p.storage.UpdateMetrics(ctx, m)
 		}
 	}()
@@ -153,9 +147,11 @@ func (p Poller) report(ctx context.Context, maxWorkers int) {
 	}
 	go func() {
 		t := time.NewTicker(p.Config.ReportInterval())
+		defer t.Stop()
 		for {
 			select {
 			case <-ctx.Done():
+				close(metrics)
 				return
 			case <-t.C:
 				// делаем снапшот метрик из хранилища, которые будем отправлять
