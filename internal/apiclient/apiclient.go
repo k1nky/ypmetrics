@@ -3,12 +3,14 @@ package apiclient
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/k1nky/ypmetrics/internal/apiclient/middleware"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/protocol"
 	"github.com/k1nky/ypmetrics/internal/retrier"
@@ -21,26 +23,51 @@ const (
 )
 
 var (
-	ErrUnexpectedStatusCode = errors.New("unexpected status code, want 200")
+	ErrUnexpectedResponse = errors.New("unexpected response")
 )
+
+type clientLogger interface {
+	Errorf(string, ...interface{})
+	Debugf(string, ...interface{})
+	Warnf(string, ...interface{})
+}
 
 // Client клиент для сервера сбора метрик
 type Client struct {
 	// URL сервера сбора метрик в формате <протокол>://<хост>[:порт]
 	EndpointURL string
 	httpclient  *resty.Client
+	middlewares []resty.PreRequestHook
 }
 
 // New возвращает нового клиента для сервера сбора метрик
-func New(url string) *Client {
+func New(url string, l clientLogger) *Client {
 	if !strings.HasPrefix(url, "http") {
 		url = "http://" + url
 	}
-	c := &Client{
+	cli := &Client{
 		EndpointURL: url,
-		httpclient:  resty.New().SetTimeout(DefaultRequestTimeout),
+		httpclient:  resty.New().SetTimeout(DefaultRequestTimeout).SetLogger(l),
+		// по умолчанию используем сжатие запросов
+		middlewares: []resty.PreRequestHook{},
 	}
-	return c
+
+	//	В качестве middleware в resty предлагается использовать RequestMiddleware с методом OnBeforeRequest.
+	//	В таком случае тело запроса будет доступно только через interface{}, т.к. пользовательские middleware
+	// 	выполняются до маршаллинга и т.п. (см. resty.parseRequestBody), про это также говорится в https://github.com/go-resty/resty/issues/517.
+	//	Таким образом сжимать данные или считать подпись на уровне таких middleware неудобно.
+	//	Будем использовать PreRequestHook для вызова middleware, однако в текущей версии PreRequestHook может быть только один.
+	//	Поэтому храним middleware в массиве и вызываем их последовательно в одном PreRequestHook.
+	//	Недостаток в таком подходе - необходимость перечитывать тело запроса в каждой middleware, которая использует тело для своих целей.
+	cli.httpclient.SetPreRequestHook(func(c *resty.Client, r *http.Request) error {
+		for _, f := range cli.middlewares {
+			if err := f(c, r); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return cli
 }
 
 // newRequest это shortcut для создания нового запроса
@@ -92,6 +119,20 @@ func (c *Client) PushMetrics(metrics metric.Metrics) (err error) {
 	return c.postData("updates/", "application/json", m)
 }
 
+// SetKey задает ключ подписи отправляемых данных. Указание ключа приводит к тому, что
+// в запрос с данными будет автоматически добавляться подпись.
+func (c *Client) SetKey(key string) *Client {
+	if len(key) > 0 {
+		c.middlewares = append(c.middlewares, middleware.NewSeal(key).Use())
+	}
+	return c
+}
+
+func (c *Client) SetGzip() *Client {
+	c.middlewares = append(c.middlewares, middleware.NewGzip().Use())
+	return c
+}
+
 // Отправляет POST запрос по пути path с типом контента contentType и телом body
 func (c *Client) postData(path string, contentType string, body interface{}) (err error) {
 	var (
@@ -110,7 +151,7 @@ func (c *Client) postData(path string, contentType string, body interface{}) (er
 	}
 	// код ответа отличный от 200 не будем считать ошибкой отправки данных
 	if resp.StatusCode() != http.StatusOK {
-		return ErrUnexpectedStatusCode
+		return fmt.Errorf("status %d %s: %w", resp.StatusCode(), resp.String(), ErrUnexpectedResponse)
 	}
 	return nil
 }

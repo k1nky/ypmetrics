@@ -2,36 +2,11 @@ package poller
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
-
-type Collector interface {
-	Collect() (metric.Metrics, error)
-}
-
-type metricStorage interface {
-	GetCounter(ctx context.Context, name string) *metric.Counter
-	GetGauge(ctx context.Context, name string) *metric.Gauge
-	UpdateCounter(ctx context.Context, name string, value int64) error
-	UpdateGauge(ctx context.Context, name string, value float64) error
-	Snapshot(ctx context.Context, metrics *metric.Metrics) error
-}
-
-type logger interface {
-	Debug(template string, args ...interface{})
-	Info(template string, args ...interface{})
-	Error(template string, args ...interface{})
-}
-
-type sender interface {
-	PushCounter(name string, value int64) error
-	PushGauge(name string, value float64) error
-	PushMetrics(metrics metric.Metrics) error
-}
 
 // Poller представляет собой набор метрик с расширенным функционалом. Он опрашивает сборщиков (Collector)
 // и периодически отправляет обновления метрик в единый набор метрик.
@@ -43,85 +18,186 @@ type Poller struct {
 	Config     config.PollerConfig
 }
 
+// Тип для ключа контекста
+type contextKey int
+
+const (
+	keyWorkerID contextKey = iota
+)
+
+const (
+	NoLimitToReport = 0
+)
+
+const (
+	MaxPollWorkers   = 2
+	MaxReportWorkers = 2
+)
+
 // New возвращает нового Poller для сбора метрик. По умолчанию в качестве хранилища используется MemStorage.
 func New(cfg config.PollerConfig, store metricStorage, log logger, client sender) *Poller {
 	return &Poller{
-		client:  client,
-		logger:  log,
-		storage: store,
-		Config:  cfg,
+		client:     client,
+		logger:     log,
+		storage:    store,
+		Config:     cfg,
+		collectors: make([]Collector, 0),
 	}
 }
 
-// AddCollector добавляет совместимый сборщик для получения метрик.
-func (a *Poller) AddCollector(collectors ...Collector) {
-	a.collectors = append(a.collectors, collectors...)
+// Добавляет сборщика для опроса
+func (p *Poller) AddCollector(c ...Collector) {
+	p.collectors = append(p.collectors, c...)
 }
 
 // Run запускает Poller
-func (a Poller) Run(ctx context.Context) {
-	var wg sync.WaitGroup
+func (p Poller) Run(ctx context.Context) {
+	// получаем метрики со сборщиков
+	metrics := p.poll(ctx, MaxPollWorkers)
+	// сохраняем их по мере поступления
+	p.storeWorker(ctx, metrics)
+	// отправляем метрик на сервер по таймеру
+	p.report(ctx, MaxReportWorkers)
+}
 
-	wg.Add(1)
+// Создает и запускает maxWorkers воркеров для опроса сборщиков метрик.
+// Собранные метрики передаются через возвращаемый канал по мере поступления.
+func (p Poller) poll(ctx context.Context, maxWorkers int) <-chan metric.Metrics {
+	// возвращаемый канал с получаемыми метриками от сборщиков
+	result := make(chan metric.Metrics, len(p.collectors))
+	// задания для воркеров сбора метрик
+	jobs := make(chan Collector, len(p.collectors))
+
+	for i := 1; i <= maxWorkers; i++ {
+		go func(id int) {
+			// запускаем очередной воркер сбора метрик
+			// у каждого воркера свой канал, в который отправляются собранные метрики
+			ch := p.pollWorker(context.WithValue(ctx, keyWorkerID, id), jobs)
+			for {
+				select {
+				case <-ctx.Done():
+					p.logger.Debugf("poll worker #%d: done", id)
+					return
+				case m, ok := <-ch:
+					if !ok {
+						return
+					}
+					// собираем метрики из воркеров в один результирующий канал
+					result <- m
+				}
+			}
+		}(i)
+	}
 	go func() {
-		defer wg.Done()
-		t := time.NewTicker(a.Config.ReportInterval())
+		t := time.NewTicker(p.Config.PollInterval())
+		defer t.Stop()
 		for {
 			select {
 			case <-ctx.Done():
-				a.logger.Debug("stop reporting")
+				close(jobs)
+				close(result)
 				return
 			case <-t.C:
-				if err := a.sendReport(); err != nil {
-					a.logger.Error("report error: %s", err)
+				// кладем в канал сборщиков, которых должны опросить воркеры
+				for _, c := range p.collectors {
+					jobs <- c
 				}
 			}
 		}
 	}()
-	wg.Add(1)
+
+	return result
+}
+
+// Воркер опроса сборщиков метрик
+func (p Poller) pollWorker(ctx context.Context, jobs <-chan Collector) <-chan metric.Metrics {
+	result := make(chan metric.Metrics)
 	go func() {
-		defer wg.Done()
-		t := time.NewTicker(a.Config.PollInterval())
-		for {
-			select {
-			case <-ctx.Done():
-				a.logger.Debug("stop polling")
-				return
-			case <-t.C:
-				a.poll(ctx)
+		defer close(result)
+		id := ctx.Value(keyWorkerID).(int)
+		for job := range jobs {
+			p.logger.Debugf("poll worker #%d: poll %T", id, job)
+			m, err := job.Collect(ctx)
+			if err != nil {
+				p.logger.Errorf("poll worker #%d: %s", id, err)
+			} else {
+				result <- m
 			}
 		}
 	}()
-
-	wg.Wait()
+	return result
 }
 
-func (a Poller) poll(ctx context.Context) {
-	for _, collector := range a.collectors {
-		a.logger.Debug("polling %T", collector)
-		m, err := collector.Collect()
-		if err != nil {
-			a.logger.Error("collector %T: %s", collector, err)
-			continue
+// Воркер сохранения метрик из канала
+func (p Poller) storeWorker(ctx context.Context, metrics <-chan metric.Metrics) {
+	go func() {
+		for m := range metrics {
+			p.storage.UpdateMetrics(ctx, m)
 		}
-		if len(m.Counters) != 0 {
-			for _, c := range m.Counters {
-				a.storage.UpdateCounter(ctx, c.Name, c.Value)
-			}
-		}
-		if len(m.Gauges) != 0 {
-			for _, g := range m.Gauges {
-				a.storage.UpdateGauge(ctx, g.Name, g.Value)
-			}
-		}
-	}
+	}()
 }
 
-func (a Poller) sendReport() error {
-	snapshot := &metric.Metrics{}
-	ctx := context.Background()
-	if err := a.storage.Snapshot(ctx, snapshot); err != nil {
-		return err
+// Создает и запускает maxWorkers воркеров для отправки метрик на сервер.
+func (p Poller) report(ctx context.Context, maxWorkers int) {
+	metrics := make(chan metric.Metrics, p.Config.RateLimit)
+
+	for i := 1; i <= maxWorkers; i++ {
+		// запускаем воркеры для отправки метрик
+		p.reportWorker(context.WithValue(ctx, keyWorkerID, i), metrics)
 	}
-	return a.client.PushMetrics(*snapshot)
+	go func() {
+		t := time.NewTicker(p.Config.ReportInterval())
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				close(metrics)
+				return
+			case <-t.C:
+				// делаем снапшот метрик из хранилища, которые будем отправлять
+				snapshot := &metric.Metrics{}
+				if err := p.storage.Snapshot(ctx, snapshot); err != nil {
+					p.logger.Errorf("report: %s", err)
+					continue
+				}
+				if p.Config.RateLimit == NoLimitToReport {
+					// ограничения на отправку нет - отправляем все метрики одним большим запросов
+					metrics <- *snapshot
+					continue
+				}
+				// ограничение на количество запросов установлен
+				// отправляем по одной метрике (иначе не совсем понятно ограничение на отправку)
+				for _, m := range snapshot.Counters {
+					metrics <- metric.Metrics{
+						Counters: []*metric.Counter{m},
+					}
+				}
+				for _, m := range snapshot.Gauges {
+					metrics <- metric.Metrics{
+						Gauges: []*metric.Gauge{m},
+					}
+				}
+			}
+		}
+	}()
+}
+
+func (p Poller) reportWorker(ctx context.Context, metrics <-chan metric.Metrics) {
+	go func() {
+		id := ctx.Value(keyWorkerID).(int)
+		for {
+			select {
+			case <-ctx.Done():
+				p.logger.Debugf("report worker #%d: done", id)
+				return
+			case m, ok := <-metrics:
+				if !ok {
+					return
+				}
+				if err := p.client.PushMetrics(m); err != nil {
+					p.logger.Errorf("report worker #%d: %s", id, err)
+				}
+			}
+		}
+	}()
 }

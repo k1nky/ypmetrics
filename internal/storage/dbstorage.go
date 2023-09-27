@@ -74,12 +74,12 @@ func (dbs *DBStorage) GetCounter(ctx context.Context, name string) *metric.Count
 	m := metric.NewCounter(name, 0)
 	row := dbs.QueryRowContext(ctx, `SELECT value FROM counter WHERE name=$1`, name)
 	if err := row.Err(); err != nil {
-		dbs.logger.Error("GetCounter: %v", err)
+		dbs.logger.Errorf("GetCounter: %v", err)
 		return nil
 	}
 	if err := row.Scan(&m.Value); err != nil {
 		if err != sql.ErrNoRows {
-			dbs.logger.Error("GetCounter: %v", err)
+			dbs.logger.Errorf("GetCounter: %v", err)
 		}
 		return nil
 	}
@@ -92,12 +92,12 @@ func (dbs *DBStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 	m := metric.NewGauge(name, 0)
 	row := dbs.QueryRowContext(ctx, `SELECT value FROM gauge WHERE name=$1`, name)
 	if err := row.Err(); err != nil {
-		dbs.logger.Error("GetGauge: %v", err)
+		dbs.logger.Errorf("GetGauge: %v", err)
 		return nil
 	}
 	if err := row.Scan(&m.Value); err != nil {
 		if err != sql.ErrNoRows {
-			dbs.logger.Error("GetGauge: %v", err)
+			dbs.logger.Errorf("GetGauge: %v", err)
 		}
 		return nil
 	}
@@ -116,7 +116,7 @@ func (dbs *DBStorage) UpdateCounter(ctx context.Context, name string, value int6
 			DO UPDATE SET value = c.value + EXCLUDED.value
 		`, name, value)
 		if err != nil {
-			dbs.logger.Error("UpdateCounter: %v", err)
+			dbs.logger.Errorf("UpdateCounter: %v", err)
 		}
 	}
 	return err
@@ -134,7 +134,7 @@ func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float6
 			DO UPDATE SET value = EXCLUDED.value
 		`, name, value)
 		if err != nil {
-			dbs.logger.Error("UpdateGauge: %v", err)
+			dbs.logger.Errorf("UpdateGauge: %v", err)
 		}
 	}
 	return err
@@ -150,7 +150,7 @@ func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics)
 	for dbs.retrier.Init(shouldRetryDBQuery); dbs.retrier.Next(err); {
 		err = dbs.updateMetrics(ctx, metrics)
 		if err != nil {
-			dbs.logger.Error("UpdateMetrics: %v", err)
+			dbs.logger.Errorf("UpdateMetrics: %v", err)
 		}
 	}
 	return err
@@ -222,7 +222,7 @@ func (dbs *DBStorage) Snapshot(ctx context.Context, metrics *metric.Metrics) err
 	}
 
 	fail := func(err error) error {
-		dbs.logger.Error("Snapshot: %v", err)
+		dbs.logger.Errorf("Snapshot: %v", err)
 		return err
 	}
 

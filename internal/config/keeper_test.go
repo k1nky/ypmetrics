@@ -26,12 +26,13 @@ func TestParseFlags(t *testing.T) {
 				Restore:            true,
 				DatabaseDSN:        "",
 				LogLevel:           "info",
+				Key:                "",
 			},
 			wantErr: false,
 		},
 		{
 			name:   "With argument",
-			osargs: []string{"server", "-a", ":8090", "-i", "10", "-r", "false", "-f", "/tmp/123", "-d", "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable", "-l", "error"},
+			osargs: []string{"server", "-a", ":8090", "-i", "10", "-r", "false", "-f", "/tmp/123", "-d", "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable", "--log-level", "error", "-k", "mysecret"},
 			env:    map[string]string{},
 			want: KeeperConfig{
 				Address:            "localhost:8090",
@@ -40,6 +41,7 @@ func TestParseFlags(t *testing.T) {
 				Restore:            false,
 				DatabaseDSN:        "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable",
 				LogLevel:           "error",
+				Key:                "mysecret",
 			},
 			wantErr: false,
 		},
@@ -53,6 +55,7 @@ func TestParseFlags(t *testing.T) {
 				"RESTORE":           "false",
 				"DATABASE_DSN":      "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable",
 				"LOG_LEVEL":         "debug",
+				"KEY":               "mysecret",
 			},
 			want: KeeperConfig{
 				Address:            "127.0.0.1:9000",
@@ -61,6 +64,7 @@ func TestParseFlags(t *testing.T) {
 				Restore:            false,
 				DatabaseDSN:        "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable",
 				LogLevel:           "debug",
+				Key:                "mysecret",
 			},
 			wantErr: false,
 		},

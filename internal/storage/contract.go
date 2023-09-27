@@ -8,7 +8,7 @@ import (
 )
 
 type storageLogger interface {
-	Error(template string, args ...interface{})
+	Errorf(template string, args ...interface{})
 }
 
 type storageRetrier interface {
