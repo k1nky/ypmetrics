@@ -47,7 +47,13 @@ func New(cfg config.PollerConfig, store metricStorage, log logger, client sender
 
 // Добавляет сборщика для опроса
 func (p *Poller) AddCollector(c ...Collector) {
-	p.collectors = append(p.collectors, c...)
+	for _, collector := range c {
+		if err := collector.Init(); err != nil {
+			p.logger.Errorf("failed initializing collector %T: %s", collector, err)
+			continue
+		}
+		p.collectors = append(p.collectors, collector)
+	}
 }
 
 // Run запускает Poller
@@ -95,6 +101,7 @@ func (p Poller) poll(ctx context.Context, maxWorkers int) <-chan metric.Metrics 
 			select {
 			case <-ctx.Done():
 				close(jobs)
+				time.Sleep(100 * time.Millisecond)
 				close(result)
 				return
 			case <-t.C:

@@ -10,6 +10,10 @@ import (
 // Сборщик метрик из пакета runtime
 type Runtime struct{}
 
+func (c *Runtime) Init() error {
+	return nil
+}
+
 func (rc *Runtime) Collect(ctx context.Context) (metric.Metrics, error) {
 	memStat := &runtime.MemStats{}
 	runtime.ReadMemStats(memStat)

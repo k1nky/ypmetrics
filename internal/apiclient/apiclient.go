@@ -59,15 +59,17 @@ func New(url string, l clientLogger) *Client {
 	//	Будем использовать PreRequestHook для вызова middleware, однако в текущей версии PreRequestHook может быть только один.
 	//	Поэтому храним middleware в массиве и вызываем их последовательно в одном PreRequestHook.
 	//	Недостаток в таком подходе - необходимость перечитывать тело запроса в каждой middleware, которая использует тело для своих целей.
-	cli.httpclient.SetPreRequestHook(func(c *resty.Client, r *http.Request) error {
-		for _, f := range cli.middlewares {
-			if err := f(c, r); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	cli.httpclient.SetPreRequestHook(cli.callMiddlewares)
 	return cli
+}
+
+func (cli *Client) callMiddlewares(c *resty.Client, r *http.Request) error {
+	for _, f := range cli.middlewares {
+		if err := f(c, r); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // newRequest это shortcut для создания нового запроса

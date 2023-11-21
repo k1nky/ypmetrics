@@ -31,4 +31,5 @@ type sender interface {
 // сборщик метрик
 type Collector interface {
 	Collect(ctx context.Context) (metric.Metrics, error)
+	Init() error
 }

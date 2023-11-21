@@ -12,6 +12,10 @@ import (
 // Сборщик метрик из пакета gopsutil
 type Gops struct{}
 
+func (c *Gops) Init() error {
+	return nil
+}
+
 func (c *Gops) Collect(ctx context.Context) (metric.Metrics, error) {
 	metrics := metric.NewMetrics()
 	memstat, err := mem.VirtualMemoryWithContext(ctx)

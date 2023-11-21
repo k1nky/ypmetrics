@@ -62,10 +62,10 @@ func Run(l *logger.Logger, cfg config.KeeperConfig) {
 	uc := keeper.New(store, cfg, l)
 	h := handler.New(*uc)
 	router := newRouter(h, l, cfg.Key)
-	// if cfg.EnableProfiling {
-	l.Infof("expose profiler on %s", DefaultProfilerPrefix)
-	exposeProfiler(router)
-	// }
+	if cfg.EnableProfiling {
+		l.Infof("expose profiler on %s", DefaultProfilerPrefix)
+		exposeProfiler(router)
+	}
 
 	l.Infof("starting on %s", cfg.Address)
 	if err := http.ListenAndServe(cfg.Address.String(), router); err != nil {
