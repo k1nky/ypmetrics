@@ -18,8 +18,9 @@ type PollerConfig struct {
 	PollIntervalInSec uint   `env:"POLL_INTERVAL"`
 	LogLevel          string `env:"LOG_LEVEL"`
 	// Ключ хеша запроса
-	Key       string `env:"KEY"`
-	RateLimit uint   `env:"RATE_LIMIT"`
+	Key             string `env:"KEY"`
+	RateLimit       uint   `env:"RATE_LIMIT"`
+	EnableProfiling bool   `env:"ENABLE_PPROF"`
 }
 
 const (
@@ -47,6 +48,7 @@ func parsePollerConfigFromCmd(c *PollerConfig) error {
 	logLevel := cmd.StringP("log-level", "", DefaultPollerLogLevel, "уровень логирования")
 	key := cmd.StringP("key", "k", "", "ключ хеша")
 	rateLimit := cmd.UintP("rate-limit", "l", DefaultPollerRateLimit, "количество одновременно исходящих запросов на сервер")
+	enableProfiling := cmd.BoolP("enable-pprof", "", false, "включить профилироовщик")
 
 	if err := cmd.Parse(os.Args[1:]); err != nil {
 		return err
@@ -59,6 +61,7 @@ func parsePollerConfigFromCmd(c *PollerConfig) error {
 		LogLevel:            *logLevel,
 		Key:                 *key,
 		RateLimit:           *rateLimit,
+		EnableProfiling:     *enableProfiling,
 	}
 	return nil
 }

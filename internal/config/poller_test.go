@@ -69,8 +69,8 @@ func TestParse(t *testing.T) {
 			env:    map[string]string{"ADDRESS": "127.0.0.1:9000"},
 			want: PollerConfig{
 				Address:             "127.0.0.1:9000",
-				ReportIntervalInSec: DefaultReportIntervalInSec,
-				PollIntervalInSec:   DefaultPollIntervalInSec,
+				ReportIntervalInSec: DefaultPollerReportIntervalInSec,
+				PollIntervalInSec:   DefaultPollerPollIntervalInSec,
 				LogLevel:            "info",
 			},
 			wantErr: false,

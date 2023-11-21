@@ -19,6 +19,7 @@ type KeeperConfig struct {
 	DatabaseDSN        string     `env:"DATABASE_DSN"`
 	LogLevel           string     `env:"LOG_LEVEL"`
 	Key                string     `env:"KEY"`
+	EnableProfiling    bool       `env:"ENABLE_PPROF"`
 }
 
 const (
@@ -45,6 +46,7 @@ func parseKeeperConfigFromCmd(c *KeeperConfig) error {
 	databaseDSN := cmd.StringP("database-dsn", "d", "", "адрес подключения к БД")
 	logLevel := cmd.StringP("log-level", "", DefaultKeeperLogLevel, "уровень логирования")
 	key := cmd.StringP("key", "k", "", "ключ хеширования")
+	enableProfiling := cmd.BoolP("enable-pprof", "", false, "включить профилировщик")
 
 	if err := cmd.Parse(os.Args[1:]); err != nil {
 		return err
@@ -53,6 +55,7 @@ func parseKeeperConfigFromCmd(c *KeeperConfig) error {
 	if err != nil {
 		return err
 	}
+
 	*c = KeeperConfig{
 		Address:            address,
 		StoreIntervalInSec: *storeInterval,
@@ -61,6 +64,7 @@ func parseKeeperConfigFromCmd(c *KeeperConfig) error {
 		DatabaseDSN:        *databaseDSN,
 		LogLevel:           *logLevel,
 		Key:                *key,
+		EnableProfiling:    *enableProfiling,
 	}
 	return nil
 }
