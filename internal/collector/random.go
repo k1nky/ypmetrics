@@ -9,15 +9,17 @@ import (
 )
 
 // Сборщик произвольного значения для метрики RandomValue
-type Random struct{}
+type Random struct {
+	r *rand.Rand
+}
+
+func (rc *Random) Init() error {
+	rc.r = rand.New(rand.NewSource(time.Now().UnixNano()))
+	return nil
+}
 
 func (rc *Random) Collect(ctx context.Context) (metric.Metrics, error) {
 	return metric.Metrics{
-		Gauges: []*metric.Gauge{metric.NewGauge("RandomValue", randomFloat())},
+		Gauges: []*metric.Gauge{metric.NewGauge("RandomValue", rc.r.NormFloat64())},
 	}, nil
-}
-
-func randomFloat() float64 {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return r.NormFloat64()
 }
