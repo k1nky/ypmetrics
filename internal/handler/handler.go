@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/protocol"
 	"github.com/k1nky/ypmetrics/internal/usecases/keeper"

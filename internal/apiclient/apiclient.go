@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
+
 	"github.com/k1nky/ypmetrics/internal/apiclient/middleware"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/protocol"

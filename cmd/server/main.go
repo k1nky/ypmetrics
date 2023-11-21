@@ -2,9 +2,11 @@ package main
 
 import (
 	"net/http"
+	"net/http/pprof"
 	"os"
 
 	"github.com/gin-gonic/gin"
+
 	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/handler"
 	"github.com/k1nky/ypmetrics/internal/handler/middleware"
@@ -12,8 +14,6 @@ import (
 	"github.com/k1nky/ypmetrics/internal/retrier"
 	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
-
-	"net/http/pprof"
 )
 
 const (

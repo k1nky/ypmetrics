@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
+
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
 
 // Сборщик метрик из пакета gopsutil

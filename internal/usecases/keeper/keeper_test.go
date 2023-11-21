@@ -3,8 +3,9 @@ package keeper
 import (
 	"testing"
 
-	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
 
 func TestUniqueCounters(t *testing.T) {

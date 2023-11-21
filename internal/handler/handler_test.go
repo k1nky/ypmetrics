@@ -10,12 +10,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/logger"
 	"github.com/k1nky/ypmetrics/internal/storage/mock"
 	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestTypeIsValid(t *testing.T) {
