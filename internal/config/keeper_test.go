@@ -21,7 +21,7 @@ func TestParseFlags(t *testing.T) {
 			env:    map[string]string{},
 			want: KeeperConfig{
 				Address:            "localhost:8080",
-				StoreIntervalInSec: DefStoreIntervalInSec,
+				StoreIntervalInSec: DefaultKeeperStoreIntervalInSec,
 				FileStoragePath:    "",
 				Restore:            true,
 				DatabaseDSN:        "",

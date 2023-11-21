@@ -23,8 +23,11 @@ type PollerConfig struct {
 }
 
 const (
-	DefPollIntervalInSec   = 2
-	DefReportIntervalInSec = 10
+	DefaultPollerPollIntervalInSec   = 2
+	DefaultPollerReportIntervalInSec = 10
+	DefaultPollerRateLimit           = 0
+	DefaultPollerLogLevel            = "info"
+	DefaultPollerAddress             = "localhost:8080"
 )
 
 func (c PollerConfig) ReportInterval() time.Duration {
@@ -37,13 +40,13 @@ func (c PollerConfig) PollInterval() time.Duration {
 
 func parsePollerConfigFromCmd(c *PollerConfig) error {
 	cmd := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-	address := NetAddress("localhost:8080")
+	address := NetAddress(DefaultPollerAddress)
 	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
-	reportInterval := cmd.UintP("report-interval", "r", DefReportIntervalInSec, "интервал отправки метрик на сервер")
-	pollInterval := cmd.UintP("poll-interval", "p", DefPollIntervalInSec, "интервал сбора метрик")
-	logLevel := cmd.StringP("log-level", "", "info", "уровень логирования")
+	reportInterval := cmd.UintP("report-interval", "r", DefaultPollerReportIntervalInSec, "интервал отправки метрик на сервер")
+	pollInterval := cmd.UintP("poll-interval", "p", DefaultPollerPollIntervalInSec, "интервал сбора метрик")
+	logLevel := cmd.StringP("log-level", "", DefaultPollerLogLevel, "уровень логирования")
 	key := cmd.StringP("key", "k", "", "ключ хеша")
-	rateLimit := cmd.UintP("rate-limit", "l", 0, "количество одновременно исходящих запросов на сервер")
+	rateLimit := cmd.UintP("rate-limit", "l", DefaultPollerRateLimit, "количество одновременно исходящих запросов на сервер")
 
 	if err := cmd.Parse(os.Args[1:]); err != nil {
 		return err

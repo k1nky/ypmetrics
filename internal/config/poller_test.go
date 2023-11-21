@@ -21,8 +21,8 @@ func TestParse(t *testing.T) {
 			env:    map[string]string{},
 			want: PollerConfig{
 				Address:             "localhost:8080",
-				ReportIntervalInSec: DefReportIntervalInSec,
-				PollIntervalInSec:   DefPollIntervalInSec,
+				ReportIntervalInSec: DefaultPollerReportIntervalInSec,
+				PollIntervalInSec:   DefaultPollerPollIntervalInSec,
 				LogLevel:            "info",
 				RateLimit:           0,
 			},
@@ -69,8 +69,8 @@ func TestParse(t *testing.T) {
 			env:    map[string]string{"ADDRESS": "127.0.0.1:9000"},
 			want: PollerConfig{
 				Address:             "127.0.0.1:9000",
-				ReportIntervalInSec: DefReportIntervalInSec,
-				PollIntervalInSec:   DefPollIntervalInSec,
+				ReportIntervalInSec: DefaultReportIntervalInSec,
+				PollIntervalInSec:   DefaultPollIntervalInSec,
 				LogLevel:            "info",
 			},
 			wantErr: false,
