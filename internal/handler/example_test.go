@@ -8,7 +8,8 @@ import (
 //lint:file-ignore all Ignore all unused code, it's generated
 
 func ExampleHandler_AllMetrics() {
-	http.Get("http://localhost:8080/")
+	resp, _ := http.Get("http://localhost:8080/")
+	resp.Body.Close()
 }
 
 func ExampleHandler_Value() {
