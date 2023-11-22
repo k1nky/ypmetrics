@@ -144,9 +144,9 @@ func (c *Client) SetGzip() *Client {
 	return c
 }
 
-func (cli *Client) callMiddlewares(c *resty.Client, r *http.Request) error {
-	for _, f := range cli.middlewares {
-		if err := f(c, r); err != nil {
+func (c *Client) callMiddlewares(cli *resty.Client, r *http.Request) error {
+	for _, f := range c.middlewares {
+		if err := f(cli, r); err != nil {
 			return err
 		}
 	}

@@ -15,14 +15,14 @@ type Random struct {
 }
 
 // Init инициализирует сборщика.
-func (rc *Random) Init() error {
-	rc.r = rand.New(rand.NewSource(time.Now().UnixNano()))
+func (c *Random) Init() error {
+	c.r = rand.New(rand.NewSource(time.Now().UnixNano()))
 	return nil
 }
 
 // Collect возвращает метрики, собранные сборщиком.
-func (rc *Random) Collect(ctx context.Context) (metric.Metrics, error) {
+func (c *Random) Collect(ctx context.Context) (metric.Metrics, error) {
 	return metric.Metrics{
-		Gauges: []*metric.Gauge{metric.NewGauge("RandomValue", rc.r.NormFloat64())},
+		Gauges: []*metric.Gauge{metric.NewGauge("RandomValue", c.r.NormFloat64())},
 	}, nil
 }

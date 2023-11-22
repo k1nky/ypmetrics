@@ -5,24 +5,30 @@ import (
 	"net/http"
 )
 
+//lint:file-ignore all Ignore all unused code, it's generated
+
 func ExampleHandler_AllMetrics() {
 	http.Get("http://localhost:8080/")
 }
 
 func ExampleHandler_Value() {
 	// получаем значение счетчика с именем counter0
-	http.Get("http://localhost:8080/counter/counter0")
+	resp, _ := http.Get("http://localhost:8080/counter/counter0")
+	resp.Body.Close()
 
 	// получаем значение измерителя с именем gauge0
-	http.Get("http://localhost:8080/gauge/gauge0")
+	resp, _ = http.Get("http://localhost:8080/gauge/gauge0")
+	resp.Body.Close()
 }
 
 func ExampleHandler_Update() {
 	// отправить метрику типа счетчик с именем counter0 и значением 10
-	http.Post("http://localhost:8080/counter/counter0/10", "text/plain", nil)
+	resp, _ := http.Post("http://localhost:8080/counter/counter0/10", "text/plain", nil)
+	resp.Body.Close()
 
 	// отправить метрику типа измеритель с именем gauge0 и значением 10.1
-	http.Post("http://localhost:8080/gauge/gauge0/10.1", "text/plain", nil)
+	resp, _ = http.Post("http://localhost:8080/gauge/gauge0/10.1", "text/plain", nil)
+	resp.Body.Close()
 }
 
 func ExampleHandler_ValueJSON() {
@@ -33,7 +39,8 @@ func ExampleHandler_ValueJSON() {
 			"type":"counter"
 		}
 	`)
-	http.Post("http://localhost:8080/value/", "application/json", payload)
+	resp, _ := http.Post("http://localhost:8080/value/", "application/json", payload)
+	resp.Body.Close()
 
 	// получаем значение измерителя с именем gauge0
 	payload = bytes.NewBufferString(`
@@ -42,7 +49,9 @@ func ExampleHandler_ValueJSON() {
 			"type":"gauge"
 		}
 	`)
-	http.Post("http://localhost:8080/value/", "application/json", payload)
+	resp, _ = http.Post("http://localhost:8080/value/", "application/json", payload)
+	resp.Body.Close()
+
 }
 
 func ExampleHandler_UpdateJSON() {
@@ -54,7 +63,8 @@ func ExampleHandler_UpdateJSON() {
 			"delta": 10
 		}
 	`)
-	http.Post("http://localhost:8080/update/", "application/json", payload)
+	resp, _ := http.Post("http://localhost:8080/update/", "application/json", payload)
+	resp.Body.Close()
 
 	// отправить метрику типа измеритель с именем gauge0 и значением 10.1
 	payload = bytes.NewBufferString(`
@@ -64,7 +74,8 @@ func ExampleHandler_UpdateJSON() {
 			"value": 10.1
 		}
 	`)
-	http.Post("http://localhost:8080/update/", "application/json", payload)
+	resp, _ = http.Post("http://localhost:8080/update/", "application/json", payload)
+	resp.Body.Close()
 }
 
 func ExampleHandler_UpdatesJSON() {
@@ -88,9 +99,12 @@ func ExampleHandler_UpdatesJSON() {
 			}
 		]
 	`)
-	http.Post("http://localhost:8080/updates/", "application/json", payload)
+	resp, _ := http.Post("http://localhost:8080/updates/", "application/json", payload)
+	resp.Body.Close()
+
 }
 
 func ExampleHandler_Ping() {
-	http.Get("http://localhost:8080/ping")
+	resp, _ := http.Get("http://localhost:8080/ping")
+	resp.Body.Close()
 }

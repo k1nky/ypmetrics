@@ -16,7 +16,7 @@ func (c *Runtime) Init() error {
 }
 
 // Collect возвращает метрики, собранные сборщиком.
-func (rc *Runtime) Collect(ctx context.Context) (metric.Metrics, error) {
+func (c *Runtime) Collect(ctx context.Context) (metric.Metrics, error) {
 	memStat := &runtime.MemStats{}
 	runtime.ReadMemStats(memStat)
 	return metric.Metrics{
