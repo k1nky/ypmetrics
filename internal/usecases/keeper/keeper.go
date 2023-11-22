@@ -37,6 +37,27 @@ func New(store metricStorage, cfg config.KeeperConfig, logger logger) *Keeper {
 	}
 }
 
+func (k *Keeper) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
+	// оставляем только уникальные метрики
+	// обновления из дублирующих метрик применяются последовательно
+	metrics.Counters = uniqueCounters(metrics.Counters)
+	metrics.Gauges = uniqueGauge(metrics.Gauges)
+	return k.metricStorage.UpdateMetrics(ctx, metrics)
+}
+
+// Ping проверяет подключение к базе данных.
+func (k *Keeper) Ping(ctx context.Context) error {
+	cfg := storage.Config{
+		DSN: k.config.DatabaseDSN,
+	}
+	db := storage.NewDBStorage(k.logger, nil)
+	if err := db.Open(cfg); err != nil {
+		return err
+	}
+	defer db.Close()
+	return db.PingContext(ctx)
+}
+
 func uniqueCounters(counters []*metric.Counter) []*metric.Counter {
 	// карта соответствия имени метрики - индексу это метрики в результирующем массиве
 	names := make(map[string]int, 0)
@@ -68,25 +89,4 @@ func uniqueGauge(gauges []*metric.Gauge) []*metric.Gauge {
 		}
 	}
 	return result
-}
-
-func (k *Keeper) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
-	// оставляем только уникальные метрики
-	// обновления из дублирующих метрик применяются последовательно
-	metrics.Counters = uniqueCounters(metrics.Counters)
-	metrics.Gauges = uniqueGauge(metrics.Gauges)
-	return k.metricStorage.UpdateMetrics(ctx, metrics)
-}
-
-// Ping проверяет подключение к базе данных.
-func (k *Keeper) Ping(ctx context.Context) error {
-	cfg := storage.Config{
-		DSN: k.config.DatabaseDSN,
-	}
-	db := storage.NewDBStorage(k.logger, nil)
-	if err := db.Open(cfg); err != nil {
-		return err
-	}
-	defer db.Close()
-	return db.PingContext(ctx)
 }

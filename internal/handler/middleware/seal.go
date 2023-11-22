@@ -27,6 +27,31 @@ func NewSeal(key string) *SealHandler {
 	}
 }
 
+func (s *SealHandler) Use() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		if seal := ctx.Request.Header.Get("HashSHA256"); len(seal) > 0 {
+			if valid, err := s.verify(ctx.Request, seal); !valid || err != nil {
+				ctx.AbortWithStatus(http.StatusBadRequest)
+				return
+			}
+		}
+
+		bw := &bufferWriter{
+			body:           &bytes.Buffer{},
+			ResponseWriter: ctx.Writer,
+		}
+		ctx.Writer = bw
+		ctx.Next()
+		h, err := s.sign(bw.body.Bytes())
+		if err != nil {
+			ctx.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		bw.Header().Set("HashSHA256", h)
+		bw.ResponseWriter.Write(bw.body.Bytes())
+	}
+}
+
 func (s *SealHandler) verify(req *http.Request, seal string) (bool, error) {
 	h := s.hashers.Get().(hash.Hash)
 	defer s.hashers.Put(h)
@@ -53,29 +78,4 @@ func (s *SealHandler) sign(data []byte) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-func (s *SealHandler) Use() gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		if seal := ctx.Request.Header.Get("HashSHA256"); len(seal) > 0 {
-			if valid, err := s.verify(ctx.Request, seal); !valid || err != nil {
-				ctx.AbortWithStatus(http.StatusBadRequest)
-				return
-			}
-		}
-
-		bw := &bufferWriter{
-			body:           &bytes.Buffer{},
-			ResponseWriter: ctx.Writer,
-		}
-		ctx.Writer = bw
-		ctx.Next()
-		h, err := s.sign(bw.body.Bytes())
-		if err != nil {
-			ctx.AbortWithStatus(http.StatusInternalServerError)
-			return
-		}
-		bw.Header().Set("HashSHA256", h)
-		bw.ResponseWriter.Write(bw.body.Bytes())
-	}
 }

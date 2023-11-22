@@ -28,6 +28,20 @@ const (
 	DefaultKeeperLogLevel           = "info"
 )
 
+// ParseKeeperConfig разбирает настройки Keeper'a из аргументов командной строки
+// и переменных окружения. Переменные окружения имеют более высокий
+// приоритет, чем аргументы.
+func ParseKeeperConfig(c *KeeperConfig) error {
+
+	if err := parseKeeperConfigFromCmd(c); err != nil {
+		return err
+	}
+	if err := parseKeeperConfigFromEnv(c); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (cfg KeeperConfig) StorageInterval() time.Duration {
 	return time.Duration(cfg.StoreIntervalInSec) * time.Second
 }
@@ -77,20 +91,6 @@ func parseKeeperConfigFromEnv(c *KeeperConfig) error {
 		if err := c.Address.Set(c.Address.String()); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-// ParseKeeperConfig разбирает настройки Keeper'a из аргументов командной строки
-// и переменных окружения. Переменные окружения имеют более высокий
-// приоритет, чем аргументы.
-func ParseKeeperConfig(c *KeeperConfig) error {
-
-	if err := parseKeeperConfigFromCmd(c); err != nil {
-		return err
-	}
-	if err := parseKeeperConfigFromEnv(c); err != nil {
-		return err
 	}
 	return nil
 }

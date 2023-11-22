@@ -37,13 +37,6 @@ func NewGzip() *Gzip {
 	}
 }
 
-func (gz *Gzip) shouldCompress(r *http.Request) bool {
-	if r.ContentLength != 0 && r.Method == http.MethodPost {
-		return true
-	}
-	return false
-}
-
 func (gz *Gzip) Use() resty.PreRequestHook {
 	return func(c *resty.Client, r *http.Request) error {
 		if !gz.shouldCompress(r) {
@@ -73,4 +66,11 @@ func (gz *Gzip) Use() resty.PreRequestHook {
 		r.Header.Set("content-encoding", "gzip")
 		return nil
 	}
+}
+
+func (gz *Gzip) shouldCompress(r *http.Request) bool {
+	if r.ContentLength != 0 && r.Method == http.MethodPost {
+		return true
+	}
+	return false
 }

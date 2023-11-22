@@ -11,28 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// shouldCompress определяет требуется ли сжатие тела ответа.
-func (gh *GzipHandler) shouldCompress(request *http.Request, response http.ResponseWriter) bool {
-	if !strings.Contains(request.Header.Get("accept-encoding"), "gzip") {
-		return false
-	}
-	contentType := response.Header().Get("content-type")
-	if len(gh.contentTypes) == 0 {
-		return true
-	}
-	for _, ct := range gh.contentTypes {
-		if strings.Contains(contentType, ct) {
-			return true
-		}
-	}
-	return false
-}
-
-// shouldUncompress определяет требуется ли разжатие тела запроса
-func (gh *GzipHandler) shouldUncompress(r *http.Request) bool {
-	return strings.Contains(r.Header.Get("content-encoding"), "gzip")
-}
-
 type GzipHandler struct {
 	contentTypes []string
 	compressors  sync.Pool
@@ -94,4 +72,26 @@ func (gh *GzipHandler) Use() gin.HandlerFunc {
 			gzwriter.ResponseWriter.Write(gzwriter.body.Bytes())
 		}
 	}
+}
+
+// shouldCompress определяет требуется ли сжатие тела ответа.
+func (gh *GzipHandler) shouldCompress(request *http.Request, response http.ResponseWriter) bool {
+	if !strings.Contains(request.Header.Get("accept-encoding"), "gzip") {
+		return false
+	}
+	contentType := response.Header().Get("content-type")
+	if len(gh.contentTypes) == 0 {
+		return true
+	}
+	for _, ct := range gh.contentTypes {
+		if strings.Contains(contentType, ct) {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldUncompress определяет требуется ли разжатие тела запроса
+func (gh *GzipHandler) shouldUncompress(r *http.Request) bool {
+	return strings.Contains(r.Header.Get("content-encoding"), "gzip")
 }

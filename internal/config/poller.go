@@ -31,6 +31,18 @@ const (
 	DefaultPollerAddress             = "localhost:8080"
 )
 
+// ParsePollerConfig возвращает конфиг Poller'a. Опции разбираются из аргументов командной строки
+// и переменных окружения. Переменные окружения имеют приоритет выше чем аргументы командной строки.
+func ParsePollerConfig(c *PollerConfig) error {
+	if err := parsePollerConfigFromCmd(c); err != nil {
+		return err
+	}
+	if err := parsePollerConfigFromEnv(c); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c PollerConfig) ReportInterval() time.Duration {
 	return time.Duration(c.ReportIntervalInSec) * time.Second
 }
@@ -74,18 +86,6 @@ func parsePollerConfigFromEnv(c *PollerConfig) error {
 		if err := c.Address.Set(c.Address.String()); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-// ParsePollerConfig возвращает конфиг Poller'a. Опции разбираются из аргументов командной строки
-// и переменных окружения. Переменные окружения имеют приоритет выше чем аргументы командной строки.
-func ParsePollerConfig(c *PollerConfig) error {
-	if err := parsePollerConfigFromCmd(c); err != nil {
-		return err
-	}
-	if err := parsePollerConfigFromEnv(c); err != nil {
-		return err
 	}
 	return nil
 }

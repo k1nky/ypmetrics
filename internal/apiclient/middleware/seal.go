@@ -27,14 +27,6 @@ func NewSeal(secret string) *Seal {
 	}
 }
 
-// Определяет потребность в формировании подписи для указаного запроса
-func (s *Seal) shouldSign(r *http.Request) bool {
-	if r.ContentLength != 0 && r.Method == http.MethodPost {
-		return true
-	}
-	return false
-}
-
 // Добавляет заголовок HashSHA256 с подписью передаваемых данных по алгоритму sha256.
 // Применимо для POST запросов с непустым телом.
 func (s *Seal) Use() resty.PreRequestHook {
@@ -58,4 +50,12 @@ func (s *Seal) Use() resty.PreRequestHook {
 
 		return nil
 	}
+}
+
+// Определяет потребность в формировании подписи для указаного запроса
+func (s *Seal) shouldSign(r *http.Request) bool {
+	if r.ContentLength != 0 && r.Method == http.MethodPost {
+		return true
+	}
+	return false
 }

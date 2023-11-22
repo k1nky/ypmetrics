@@ -64,20 +64,6 @@ func New(url string, l clientLogger) *Client {
 	return cli
 }
 
-func (cli *Client) callMiddlewares(c *resty.Client, r *http.Request) error {
-	for _, f := range cli.middlewares {
-		if err := f(c, r); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// newRequest это shortcut для создания нового запроса
-func (c *Client) newRequest() *resty.Request {
-	return c.httpclient.R().SetHeader("accept-encoding", "gzip")
-}
-
 // PushMetric отправляет метрику на сервер
 func (c *Client) PushMetric(typ, name, value string) error {
 
@@ -131,9 +117,24 @@ func (c *Client) SetKey(key string) *Client {
 	return c
 }
 
+// SetGzip добавляет middleware для сжатия передаваемых данных
 func (c *Client) SetGzip() *Client {
 	c.middlewares = append(c.middlewares, middleware.NewGzip().Use())
 	return c
+}
+
+func (cli *Client) callMiddlewares(c *resty.Client, r *http.Request) error {
+	for _, f := range cli.middlewares {
+		if err := f(c, r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// newRequest это shortcut для создания нового запроса
+func (c *Client) newRequest() *resty.Request {
+	return c.httpclient.R().SetHeader("accept-encoding", "gzip")
 }
 
 // Отправляет POST запрос по пути path с типом контента contentType и телом body

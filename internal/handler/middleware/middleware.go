@@ -12,6 +12,16 @@ type bufferWriter struct {
 	body *bytes.Buffer
 }
 
+// RequireContentType это middleware, который определяет требование для значения заголовка ContentType
+func RequireContentType(contentType string) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		if ctx.ContentType() != contentType {
+			ctx.AbortWithStatus(http.StatusBadRequest)
+		}
+		ctx.Next()
+	}
+}
+
 func (bw *bufferWriter) WriteString(s string) (int, error) {
 	return bw.Write([]byte(s))
 }
@@ -24,14 +34,4 @@ func (bw *bufferWriter) Write(data []byte) (int, error) {
 func (bw *bufferWriter) WriteHeader(code int) {
 	bw.Header().Del("Content-Length")
 	bw.ResponseWriter.WriteHeader(code)
-}
-
-// RequireContentType это middleware, который определяет требование для значения заголовка ContentType
-func RequireContentType(contentType string) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		if ctx.ContentType() != contentType {
-			ctx.AbortWithStatus(http.StatusBadRequest)
-		}
-		ctx.Next()
-	}
 }
