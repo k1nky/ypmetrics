@@ -12,14 +12,14 @@ func TestParse(t *testing.T) {
 		name    string
 		osargs  []string
 		env     map[string]string
-		want    PollerConfig
+		want    Poller
 		wantErr bool
 	}{
 		{
 			name:   "Default",
 			osargs: []string{"agent"},
 			env:    map[string]string{},
-			want: PollerConfig{
+			want: Poller{
 				Address:             "localhost:8080",
 				ReportIntervalInSec: DefaultPollerReportIntervalInSec,
 				PollIntervalInSec:   DefaultPollerPollIntervalInSec,
@@ -32,7 +32,7 @@ func TestParse(t *testing.T) {
 			name:   "With argument",
 			osargs: []string{"server", "-a", ":8090", "-r", "30", "-p", "10", "--log-level", "error", "-k", "secret", "-l", "12"},
 			env:    map[string]string{},
-			want: PollerConfig{
+			want: Poller{
 				Address:             "localhost:8090",
 				ReportIntervalInSec: 30,
 				PollIntervalInSec:   10,
@@ -53,7 +53,7 @@ func TestParse(t *testing.T) {
 				"KEY":             "secret",
 				"RATE_LIMIT":      "12",
 			},
-			want: PollerConfig{
+			want: Poller{
 				Address:             "127.0.0.1:9000",
 				ReportIntervalInSec: 30,
 				PollIntervalInSec:   10,
@@ -67,7 +67,7 @@ func TestParse(t *testing.T) {
 			name:   "With argument and environment variable",
 			osargs: []string{"server", "-a", ":8090"},
 			env:    map[string]string{"ADDRESS": "127.0.0.1:9000"},
-			want: PollerConfig{
+			want: Poller{
 				Address:             "127.0.0.1:9000",
 				ReportIntervalInSec: DefaultPollerReportIntervalInSec,
 				PollIntervalInSec:   DefaultPollerPollIntervalInSec,
@@ -79,28 +79,28 @@ func TestParse(t *testing.T) {
 			name:    "With invalid argument",
 			osargs:  []string{"server", "-t"},
 			env:     map[string]string{},
-			want:    PollerConfig{},
+			want:    Poller{},
 			wantErr: true,
 		},
 		{
 			name:    "With invalid argument value",
 			osargs:  []string{"server", "-a", "127.0.0.1/8000"},
 			env:     map[string]string{},
-			want:    PollerConfig{},
+			want:    Poller{},
 			wantErr: true,
 		},
 		{
 			name:    "With invalid evironment variable value",
 			osargs:  []string{"server"},
 			env:     map[string]string{"ADDRESS": "127.0.0.1/8000"},
-			want:    PollerConfig{},
+			want:    Poller{},
 			wantErr: true,
 		},
 		{
 			name:    "With invalid evironment variable and argument value",
 			osargs:  []string{"server", "-a", "127.0.0.2/8000"},
 			env:     map[string]string{"ADDRESS": "127.0.0.1/8000"},
-			want:    PollerConfig{},
+			want:    Poller{},
 			wantErr: true,
 		},
 	}
@@ -111,7 +111,7 @@ func TestParse(t *testing.T) {
 				t.Setenv(k, v)
 			}
 
-			c := PollerConfig{}
+			c := Poller{}
 			if err := ParsePollerConfig(&c); err != nil {
 				if (err != nil) != tt.wantErr {
 					t.Errorf("Config.Parse() error = %v, wantErr %v", err, tt.wantErr)

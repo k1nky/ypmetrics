@@ -25,11 +25,12 @@ type logger interface {
 // функционал storage.Storage.
 type Keeper struct {
 	metricStorage
-	config config.KeeperConfig
+	config config.Keeper
 	logger logger
 }
 
-func New(store metricStorage, cfg config.KeeperConfig, logger logger) *Keeper {
+// New возвращает нового хранителя метрик.
+func New(store metricStorage, cfg config.Keeper, logger logger) *Keeper {
 	return &Keeper{
 		metricStorage: store,
 		config:        cfg,
@@ -37,6 +38,7 @@ func New(store metricStorage, cfg config.KeeperConfig, logger logger) *Keeper {
 	}
 }
 
+// UpdateMetrics обновляет хранимые метрики.
 func (k *Keeper) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
 	// оставляем только уникальные метрики
 	// обновления из дублирующих метрик применяются последовательно

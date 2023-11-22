@@ -12,7 +12,7 @@ type bufferWriter struct {
 	body *bytes.Buffer
 }
 
-// RequireContentType это middleware, который определяет требование для значения заголовка ContentType
+// RequireContentType это middleware, который определяет соответствие значения заголовка ContentType с требуемым в contentType
 func RequireContentType(contentType string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		if ctx.ContentType() != contentType {

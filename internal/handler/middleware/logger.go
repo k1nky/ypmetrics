@@ -12,7 +12,7 @@ type requestLogger interface {
 	Infof(template string, args ...interface{})
 }
 
-// Logger это middleware для  логирования запросов и ответов
+// Logger это middleware для  логирования запросов и ответов.
 func Logger(l requestLogger) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		start := time.Now()

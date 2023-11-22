@@ -13,12 +13,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type SealHandler struct {
+// Seal middleware для подписи отправляемых данных и проверки подписи получаемых данных.
+type Seal struct {
 	hashers sync.Pool
 }
 
-func NewSeal(key string) *SealHandler {
-	return &SealHandler{
+func NewSeal(key string) *Seal {
+	return &Seal{
 		hashers: sync.Pool{
 			New: func() any {
 				return hmac.New(sha256.New, []byte(key))
@@ -27,7 +28,9 @@ func NewSeal(key string) *SealHandler {
 	}
 }
 
-func (s *SealHandler) Use() gin.HandlerFunc {
+// Use формирует подпись отправляемых данных и проверяет подпись получаемых данных.
+// Подпись должна быть указана в заголовке HashSHA256.
+func (s *Seal) Use() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		if seal := ctx.Request.Header.Get("HashSHA256"); len(seal) > 0 {
 			if valid, err := s.verify(ctx.Request, seal); !valid || err != nil {
@@ -52,7 +55,7 @@ func (s *SealHandler) Use() gin.HandlerFunc {
 	}
 }
 
-func (s *SealHandler) verify(req *http.Request, seal string) (bool, error) {
+func (s *Seal) verify(req *http.Request, seal string) (bool, error) {
 	h := s.hashers.Get().(hash.Hash)
 	defer s.hashers.Put(h)
 	h.Reset()
@@ -69,7 +72,7 @@ func (s *SealHandler) verify(req *http.Request, seal string) (bool, error) {
 	return seal == got, nil
 }
 
-func (s *SealHandler) sign(data []byte) (string, error) {
+func (s *Seal) sign(data []byte) (string, error) {
 	h := s.hashers.Get().(hash.Hash)
 	defer s.hashers.Put(h)
 	h.Reset()

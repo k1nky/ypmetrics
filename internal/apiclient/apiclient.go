@@ -1,4 +1,4 @@
-// Пакет apiclient реализует клиент для работы с сервером сбора метрик
+// Пакет apiclient реализует клиент для работы с сервером сбора метрик.
 package apiclient
 
 import (
@@ -18,12 +18,18 @@ import (
 )
 
 const (
+	// Таймаут запроса по умолчанию.
 	DefaultRequestTimeout = 5 * time.Second
-	CounterType           = "counter"
-	GaugeType             = "gauge"
+)
+
+// Типы метрик.
+const (
+	CounterType = "counter"
+	GaugeType   = "gauge"
 )
 
 var (
+	// ErrUnexpectedResponse сервер вернул неожиданный ответ на запрос.
 	ErrUnexpectedResponse = errors.New("unexpected response")
 )
 
@@ -33,15 +39,23 @@ type clientLogger interface {
 	Warnf(string, ...interface{})
 }
 
-// Client клиент для сервера сбора метрик
+// Client http-клиент для сервера сбора метрик. Клиент может повторять запросы, которые не удалось доставить.
 type Client struct {
-	// URL сервера сбора метрик в формате <протокол>://<хост>[:порт]
+	// EndpointURL URL сервера сбора метрик в формате <протокол>://<хост>[:порт].
 	EndpointURL string
 	httpclient  *resty.Client
 	middlewares []resty.PreRequestHook
 }
 
-// New возвращает нового клиента для сервера сбора метрик
+// New возвращает нового клиента для сервера сбора метрик.
+// Если в url не указана схема, то будет использоваться http по умолчанию.
+// Логгер должен реализовывать следуюший интерфейс:
+//
+//	 type logger interface {
+//			Errorf(string, ...interface{})
+//			Debugf(string, ...interface{})
+//			Warnf(string, ...interface{})
+//	}
 func New(url string, l clientLogger) *Client {
 	if !strings.HasPrefix(url, "http") {
 		url = "http://" + url
@@ -64,7 +78,8 @@ func New(url string, l clientLogger) *Client {
 	return cli
 }
 
-// PushMetric отправляет метрику на сервер
+// PushMetric отправляет метрику типа typ с именем name и значением value на сервер.
+// Метод вернет ошибку, если отправить не удалось или сервер не принял данную метрику.
 func (c *Client) PushMetric(typ, name, value string) error {
 
 	path, err := url.JoinPath("update/", typ, name, value)
@@ -74,7 +89,9 @@ func (c *Client) PushMetric(typ, name, value string) error {
 	return c.postData(path, "text/plain", nil)
 }
 
-// PushCounter отправляет счетчик на сервер в формате JSON
+// PushCounter отправляет счетчик с именем name и значением value на сервер.
+// Данные отправляются в формате JSON.
+// Метод вернет ошибку, если отправить не удалось или сервер не принял данную метрику.
 func (c *Client) PushCounter(name string, value int64) error {
 	return c.postData("update/", "application/json", protocol.Metrics{
 		ID:    name,
@@ -83,7 +100,9 @@ func (c *Client) PushCounter(name string, value int64) error {
 	})
 }
 
-// PushGauge отправляет измеритель на сервер в формате JSON
+// PushGauge отправляет измеритель с именем name и значением value на сервер.
+// Данные отправляются в формате JSON.
+// Метод вернет ошибку, если отправить не удалось или сервер не принял данную метрику.
 func (c *Client) PushGauge(name string, value float64) (err error) {
 	return c.postData("update/", "application/json", protocol.Metrics{
 		ID:    name,
@@ -92,7 +111,9 @@ func (c *Client) PushGauge(name string, value float64) (err error) {
 	})
 }
 
-// PushMetrics отправляет метрики на сервер в формате JSON
+// PushMetrics отправляет несколько метрик на сервер.
+// Данные отправляются в формате JSON.
+// Метод вернет ошибку, если отправить не удалось или сервер не принял данную метрику.
 func (c *Client) PushMetrics(metrics metric.Metrics) (err error) {
 	metricsCount := len(metrics.Counters) + len(metrics.Gauges)
 	if metricsCount == 0 {
@@ -108,8 +129,8 @@ func (c *Client) PushMetrics(metrics metric.Metrics) (err error) {
 	return c.postData("updates/", "application/json", m)
 }
 
-// SetKey задает ключ подписи отправляемых данных. Указание ключа приводит к тому, что
-// в запрос с данными будет автоматически добавляться подпись.
+// SetKey задает ключ подписи отправляемых данных, которым будут подписываться отправляемые данные.
+// Формирование подписи осуществляется автоматически для каждого запроса.
 func (c *Client) SetKey(key string) *Client {
 	if len(key) > 0 {
 		c.middlewares = append(c.middlewares, middleware.NewSeal(key).Use())
@@ -117,7 +138,7 @@ func (c *Client) SetKey(key string) *Client {
 	return c
 }
 
-// SetGzip добавляет middleware для сжатия передаваемых данных
+// SetGzip включает сжатие передаваемых данных.
 func (c *Client) SetGzip() *Client {
 	c.middlewares = append(c.middlewares, middleware.NewGzip().Use())
 	return c
@@ -132,12 +153,12 @@ func (cli *Client) callMiddlewares(c *resty.Client, r *http.Request) error {
 	return nil
 }
 
-// newRequest это shortcut для создания нового запроса
+// newRequest это shortcut для создания нового запроса.
 func (c *Client) newRequest() *resty.Request {
 	return c.httpclient.R().SetHeader("accept-encoding", "gzip")
 }
 
-// Отправляет POST запрос по пути path с типом контента contentType и телом body
+// Отправляет POST запрос по пути path с типом контента contentType и телом body.
 func (c *Client) postData(path string, contentType string, body interface{}) (err error) {
 	var (
 		requestURL string

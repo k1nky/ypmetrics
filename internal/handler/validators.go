@@ -3,6 +3,7 @@ package handler
 // metricType тип метрики
 type metricType string
 
+// Типы метрик.
 const (
 	TypeGauge   = metricType("gauge")
 	TypeCounter = metricType("counter")

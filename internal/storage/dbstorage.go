@@ -14,16 +14,18 @@ import (
 )
 
 const (
+	// Максимальное количество открытых подключений к базе данных
 	MaxKeepaliveDBConnections = 10
 )
 
-// Хранилище метрик в базе данных
+// Хранилище метрик в базе данных.
 type DBStorage struct {
 	*sql.DB
 	retrier storageRetrier
 	logger  storageLogger
 }
 
+// NewDBStorage возвращает новое хранилище метрик в базе данных.
 func NewDBStorage(logger storageLogger, retrier storageRetrier) *DBStorage {
 	return &DBStorage{
 		logger:  logger,
@@ -45,7 +47,7 @@ func (dbs *DBStorage) Open(cfg Config) (err error) {
 	return dbs.Initialize()
 }
 
-// Initialize создает схему базы данных
+// Initialize создает схему базы данных.
 func (dbs *DBStorage) Initialize() error {
 	tx, err := dbs.Begin()
 	if err != nil {
@@ -70,7 +72,7 @@ func (dbs *DBStorage) Initialize() error {
 }
 
 // GetCounter возвращает метрику Counter по имени name.
-// Будет возвращен nil, если метрика не найдена
+// Будет возвращен nil, если метрика не найдена.
 func (dbs *DBStorage) GetCounter(ctx context.Context, name string) *metric.Counter {
 	m := metric.NewCounter(name, 0)
 	row := dbs.QueryRowContext(ctx, `SELECT value FROM counter WHERE name=$1`, name)
@@ -88,7 +90,7 @@ func (dbs *DBStorage) GetCounter(ctx context.Context, name string) *metric.Count
 }
 
 // GetGauge возвращает метрику Gauge по имени name.
-// Будет возвращен nil, если метрика не найдена
+// Будет возвращен nil, если метрика не найдена.
 func (dbs *DBStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 	m := metric.NewGauge(name, 0)
 	row := dbs.QueryRowContext(ctx, `SELECT value FROM gauge WHERE name=$1`, name)
@@ -105,7 +107,7 @@ func (dbs *DBStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 	return m
 }
 
-// UpdateCounter обновляет метрику Counter в базе данных
+// UpdateCounter обновляет метрику Counter в базе данных.
 func (dbs *DBStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
 	var err error
 
@@ -123,7 +125,7 @@ func (dbs *DBStorage) UpdateCounter(ctx context.Context, name string, value int6
 	return err
 }
 
-// UpdateGauge обновляет метрику Gauge в базе данных
+// UpdateGauge обновляет метрику Gauge в базе данных.
 func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
 	var err error
 
@@ -141,7 +143,7 @@ func (dbs *DBStorage) UpdateGauge(ctx context.Context, name string, value float6
 	return err
 }
 
-// UpdateMetrics выполняет множественно обнволение метрик. Обновление выполняется в транзакции.
+// UpdateMetrics выполняет множественно обновление метрик. Обновление выполняется в транзакции.
 // Для множественного обновления используется вариант с функцией UNNEST.
 // В dbstorage_test рассмотрены еще возможные варианты BenchmarkBulkUpdate*. Выбран вариант с UNNEST,
 // т.к. не требует создания строк, однако требует указания типа аргументов.
@@ -155,6 +157,53 @@ func (dbs *DBStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics)
 		}
 	}
 	return err
+}
+
+// Snapshot создает снимок метрик из базы данных.
+func (dbs *DBStorage) Snapshot(ctx context.Context, metrics *metric.Metrics) error {
+
+	if metrics == nil {
+		return nil
+	}
+
+	fail := func(err error) error {
+		dbs.logger.Errorf("Snapshot: %v", err)
+		return err
+	}
+
+	counters, err := dbs.QueryContext(ctx, `SELECT name, value FROM counter`)
+	if err != nil {
+		return fail(err)
+	}
+	defer counters.Close()
+	for counters.Next() {
+		m := &metric.Counter{}
+		if err := counters.Scan(&m.Name, &m.Value); err != nil {
+			return fail(err)
+		}
+		metrics.Counters = append(metrics.Counters, m)
+	}
+	if err := counters.Err(); err != nil {
+		return fail(err)
+	}
+
+	gauges, err := dbs.QueryContext(ctx, `SELECT name, value FROM gauge`)
+	if err != nil {
+		return fail(err)
+	}
+	defer gauges.Close()
+	for gauges.Next() {
+		m := &metric.Gauge{}
+		if err := gauges.Scan(&m.Name, &m.Value); err != nil {
+			return fail(err)
+		}
+		metrics.Gauges = append(metrics.Gauges, m)
+	}
+	if err := gauges.Err(); err != nil {
+		return fail(err)
+	}
+
+	return nil
 }
 
 func (dbs *DBStorage) updateMetrics(ctx context.Context, metrics metric.Metrics) error {
@@ -210,53 +259,6 @@ func (dbs *DBStorage) updateMetrics(ctx context.Context, metrics metric.Metrics)
 	}
 	if err := tx.Commit(); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-// Snapshot создает снимок метрик из базы данных
-func (dbs *DBStorage) Snapshot(ctx context.Context, metrics *metric.Metrics) error {
-
-	if metrics == nil {
-		return nil
-	}
-
-	fail := func(err error) error {
-		dbs.logger.Errorf("Snapshot: %v", err)
-		return err
-	}
-
-	counters, err := dbs.QueryContext(ctx, `SELECT name, value FROM counter`)
-	if err != nil {
-		return fail(err)
-	}
-	defer counters.Close()
-	for counters.Next() {
-		m := &metric.Counter{}
-		if err := counters.Scan(&m.Name, &m.Value); err != nil {
-			return fail(err)
-		}
-		metrics.Counters = append(metrics.Counters, m)
-	}
-	if err := counters.Err(); err != nil {
-		return fail(err)
-	}
-
-	gauges, err := dbs.QueryContext(ctx, `SELECT name, value FROM gauge`)
-	if err != nil {
-		return fail(err)
-	}
-	defer gauges.Close()
-	for gauges.Next() {
-		m := &metric.Gauge{}
-		if err := gauges.Scan(&m.Name, &m.Value); err != nil {
-			return fail(err)
-		}
-		metrics.Gauges = append(metrics.Gauges, m)
-	}
-	if err := gauges.Err(); err != nil {
-		return fail(err)
 	}
 
 	return nil

@@ -44,7 +44,7 @@ func BenchmarkPoll(b *testing.B) {
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
 			b.StopTimer()
-			p := New(config.PollerConfig{
+			p := New(config.Poller{
 				PollIntervalInSec: 1,
 			}, nil, &log.Blackhole{}, nil)
 

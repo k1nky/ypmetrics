@@ -8,21 +8,7 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-// PollerConfig конфигурация агента
-type PollerConfig struct {
-	// Адрес сервера, к которому будет подключаться агент
-	Address NetAddress `env:"ADDRESS"`
-	// Интервал отправки метрик на сервер (в секундах)
-	ReportIntervalInSec uint `env:"REPORT_INTERVAL"`
-	// Интервал сбора метрик (в секундах)
-	PollIntervalInSec uint   `env:"POLL_INTERVAL"`
-	LogLevel          string `env:"LOG_LEVEL"`
-	// Ключ хеша запроса
-	Key             string `env:"KEY"`
-	RateLimit       uint   `env:"RATE_LIMIT"`
-	EnableProfiling bool   `env:"ENABLE_PPROF"`
-}
-
+// Значения по умолчанию
 const (
 	DefaultPollerPollIntervalInSec   = 2
 	DefaultPollerReportIntervalInSec = 10
@@ -31,9 +17,29 @@ const (
 	DefaultPollerAddress             = "localhost:8080"
 )
 
+// Poller конфигурация агента.
+type Poller struct {
+	// Адрес сервера, к которому будет подключаться агент
+	// Address адрес и порт, на который будут отправляться метрики. По умолчанию localhost:8080.
+	// Допустимый формат [хост]:<порт>.
+	Address NetAddress `env:"ADDRESS"`
+	// ReportIntervalInSec Интервал отправки метрик на сервер (в секундах).
+	ReportIntervalInSec uint `env:"REPORT_INTERVAL"`
+	// PollIntervalInSec Интервал сбора метрик (в секундах).
+	PollIntervalInSec uint `env:"POLL_INTERVAL"`
+	// LogLevel уровень логирования. По умолчанию info.
+	LogLevel string `env:"LOG_LEVEL"`
+	// Ключ подписи передаваемых данных.
+	Key string `env:"KEY"`
+	// RateLimit ограничение передаваемых метрик за раз. По умолчанию ограничения нет.
+	RateLimit uint `env:"RATE_LIMIT"`
+	// EnableProfiling доступ к профилировщику. По умолчанию недоступен.
+	EnableProfiling bool `env:"ENABLE_PPROF"`
+}
+
 // ParsePollerConfig возвращает конфиг Poller'a. Опции разбираются из аргументов командной строки
 // и переменных окружения. Переменные окружения имеют приоритет выше чем аргументы командной строки.
-func ParsePollerConfig(c *PollerConfig) error {
+func ParsePollerConfig(c *Poller) error {
 	if err := parsePollerConfigFromCmd(c); err != nil {
 		return err
 	}
@@ -43,15 +49,17 @@ func ParsePollerConfig(c *PollerConfig) error {
 	return nil
 }
 
-func (c PollerConfig) ReportInterval() time.Duration {
+// ReportInterval возвращает интервал отправки метрик на сервер в виде time.Duration.
+func (c Poller) ReportInterval() time.Duration {
 	return time.Duration(c.ReportIntervalInSec) * time.Second
 }
 
-func (c PollerConfig) PollInterval() time.Duration {
+// ReportInterval возвращает интервал сбора метрик в виде time.Duration.
+func (c Poller) PollInterval() time.Duration {
 	return time.Duration(c.PollIntervalInSec) * time.Second
 }
 
-func parsePollerConfigFromCmd(c *PollerConfig) error {
+func parsePollerConfigFromCmd(c *Poller) error {
 	cmd := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	address := NetAddress(DefaultPollerAddress)
 	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
@@ -66,7 +74,7 @@ func parsePollerConfigFromCmd(c *PollerConfig) error {
 		return err
 	}
 
-	*c = PollerConfig{
+	*c = Poller{
 		Address:             address,
 		ReportIntervalInSec: *reportInterval,
 		PollIntervalInSec:   *pollInterval,
@@ -78,7 +86,7 @@ func parsePollerConfigFromCmd(c *PollerConfig) error {
 	return nil
 }
 
-func parsePollerConfigFromEnv(c *PollerConfig) error {
+func parsePollerConfigFromEnv(c *Poller) error {
 	if err := env.Parse(c); err != nil {
 		return err
 	}

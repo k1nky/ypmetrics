@@ -11,13 +11,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type GzipHandler struct {
+// Gzip middleware для сжатия и расжатия тела запроса
+type Gzip struct {
 	contentTypes []string
 	compressors  sync.Pool
 }
 
-func NewGzip(contentTypes []string) *GzipHandler {
-	return &GzipHandler{
+// NewGzip возвращает новый экземпляр middleware для сжатия и расжатия тела запроса
+func NewGzip(contentTypes []string) *Gzip {
+	return &Gzip{
 		contentTypes: contentTypes,
 		compressors: sync.Pool{
 			New: func() any {
@@ -30,13 +32,13 @@ func NewGzip(contentTypes []string) *GzipHandler {
 
 // Gzip middleware позволяет разжимать тело запроса и сжимать тело ответа.
 // Тело запроса будет разжато, если указан заголовок content-encoding: gzip.
-// Сжатие тела ответа будет выполняться при истиности следующих условий:
 //
-//	клиент поддерживает сжатие (заголовок accept-encoding);
-//	тип контента ответа разрешен для сжатия (contentTypes).
+// Сжатие тела ответа будет выполняться при истиности следующих условий:
+// 1) клиент поддерживает сжатие (заголовок accept-encoding);
+// 2) тип контента ответа разрешен для сжатия (contentTypes).
 //
 // Если список разрешенных типов пустой, то сжимать можно тело с любым типом.
-func (gh *GzipHandler) Use() gin.HandlerFunc {
+func (gh *Gzip) Use() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		if gh.shouldUncompress(ctx.Request) {
 			// требуется разжатие тела запроса, поэтому подменяем тело запроса
@@ -75,7 +77,7 @@ func (gh *GzipHandler) Use() gin.HandlerFunc {
 }
 
 // shouldCompress определяет требуется ли сжатие тела ответа.
-func (gh *GzipHandler) shouldCompress(request *http.Request, response http.ResponseWriter) bool {
+func (gh *Gzip) shouldCompress(request *http.Request, response http.ResponseWriter) bool {
 	if !strings.Contains(request.Header.Get("accept-encoding"), "gzip") {
 		return false
 	}
@@ -92,6 +94,6 @@ func (gh *GzipHandler) shouldCompress(request *http.Request, response http.Respo
 }
 
 // shouldUncompress определяет требуется ли разжатие тела запроса
-func (gh *GzipHandler) shouldUncompress(r *http.Request) bool {
+func (gh *Gzip) shouldUncompress(r *http.Request) bool {
 	return strings.Contains(r.Header.Get("content-encoding"), "gzip")
 }

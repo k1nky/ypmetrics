@@ -24,7 +24,7 @@ const (
 
 func main() {
 	l := logger.New()
-	cfg := config.PollerConfig{}
+	cfg := config.Poller{}
 	if err := config.ParsePollerConfig(&cfg); err != nil {
 		l.Errorf("config: %s", err)
 		os.Exit(1)
@@ -37,7 +37,7 @@ func main() {
 	Run(l, cfg)
 }
 
-func Run(l *logger.Logger, cfg config.PollerConfig) {
+func Run(l *logger.Logger, cfg config.Poller) {
 	// для агента храним метрики в памяти
 	store := storage.NewMemStorage()
 	defer store.Close()

@@ -24,8 +24,8 @@ func init() {
 	gin.SetMode(gin.ReleaseMode)
 }
 
-func parseConfig() (config.KeeperConfig, error) {
-	cfg := config.KeeperConfig{}
+func parseConfig() (config.Keeper, error) {
+	cfg := config.Keeper{}
 	err := config.ParseKeeperConfig(&cfg)
 	return cfg, err
 }
@@ -46,7 +46,7 @@ func main() {
 	Run(l, cfg)
 }
 
-func Run(l *logger.Logger, cfg config.KeeperConfig) {
+func Run(l *logger.Logger, cfg config.Keeper) {
 	storeConfig := storage.Config{
 		DSN:           cfg.DatabaseDSN,
 		StoragePath:   cfg.FileStoragePath,
