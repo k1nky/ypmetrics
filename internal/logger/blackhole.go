@@ -1,5 +1,6 @@
 package logger
 
+// Blackhole логгер "черная дыра". Никуда ничего не пишет. Удобно использовать в тестах.
 type Blackhole struct{}
 
 func (l *Blackhole) Debugf(template string, args ...interface{}) {}

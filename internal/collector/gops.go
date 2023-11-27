@@ -4,14 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
+
+	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
 
-// Сборщик метрик из пакета gopsutil
+// Gops cборщик метрик на основе пакета gopsutil.
 type Gops struct{}
 
+// Init инициализирует сборщика.
+func (c *Gops) Init() error {
+	return nil
+}
+
+// Collect возвращает метрики, собранные сборщиком.
 func (c *Gops) Collect(ctx context.Context) (metric.Metrics, error) {
 	metrics := metric.NewMetrics()
 	memstat, err := mem.VirtualMemoryWithContext(ctx)

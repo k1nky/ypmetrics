@@ -8,9 +8,10 @@ import (
 	"testing"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNew(t *testing.T) {

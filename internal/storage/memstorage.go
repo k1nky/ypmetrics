@@ -7,7 +7,7 @@ import (
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
 
-// MemStorage хранилище метрик в памяти
+// MemStorage хранилище метрик в памяти.
 type MemStorage struct {
 	counters     map[string]*metric.Counter
 	gauges       map[string]*metric.Gauge
@@ -15,7 +15,7 @@ type MemStorage struct {
 	gaugesLock   sync.RWMutex
 }
 
-// NewMemStorage возвращает новое хранилище в памяти
+// NewMemStorage возвращает новое хранилище в памяти.
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
 		counters: make(map[string]*metric.Counter),
@@ -23,12 +23,14 @@ func NewMemStorage() *MemStorage {
 	}
 }
 
+// Open открывает хранлище в памяти. Не имеет никакого эффекта и всегда возвращает nil.
+// Требуется для реализации интерфейса Storage.
 func (ms *MemStorage) Open(cfg Config) error {
 	return nil
 }
 
 // GetCounter возвращает метрику Counter по имени name.
-// Будет возвращен nil, если метрика не найдена
+// Будет возвращен nil, если метрика не найдена.
 func (ms *MemStorage) GetCounter(ctx context.Context, name string) *metric.Counter {
 	ms.countersLock.RLock()
 	defer ms.countersLock.RUnlock()
@@ -40,7 +42,7 @@ func (ms *MemStorage) GetCounter(ctx context.Context, name string) *metric.Count
 }
 
 // GetGauge возвращает метрику Gauge по имени name.
-// Будет возвращен nil, если метрика не найдена
+// Будет возвращен nil, если метрика не найдена.
 func (ms *MemStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 	ms.gaugesLock.RLock()
 	defer ms.gaugesLock.RUnlock()
@@ -51,7 +53,7 @@ func (ms *MemStorage) GetGauge(ctx context.Context, name string) *metric.Gauge {
 	return nil
 }
 
-// UpdateCounter сохраняет метрику Counter в хранилище
+// UpdateCounter сохраняет метрику Counter c именем name и значением value в хранилище.
 func (ms *MemStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
 	c := ms.GetCounter(ctx, name)
 
@@ -68,7 +70,7 @@ func (ms *MemStorage) UpdateCounter(ctx context.Context, name string, value int6
 	return nil
 }
 
-// UpdateMetrics сохраняет метрики в хранилище
+// UpdateMetrics сохраняет метрики metrics в хранилище.
 func (ms *MemStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
 	for _, m := range metrics.Counters {
 		ms.UpdateCounter(ctx, m.Name, m.Value)
@@ -79,7 +81,7 @@ func (ms *MemStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics)
 	return nil
 }
 
-// UpdateGauge сохраняет метрику Gauge в хранилище
+// UpdateGauge сохраняет метрику Gauge c именем name и значением value в хранилище
 func (ms *MemStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
 	g := ms.GetGauge(ctx, name)
 
@@ -97,7 +99,7 @@ func (ms *MemStorage) UpdateGauge(ctx context.Context, name string, value float6
 	return nil
 }
 
-// Snapshot создает снимок метрик из хранилища
+// Snapshot создает снимок метрик из хранилища и сохраняет его в snap.
 func (ms *MemStorage) Snapshot(ctx context.Context, snap *metric.Metrics) error {
 
 	if snap == nil {
@@ -122,6 +124,8 @@ func (ms *MemStorage) Snapshot(ctx context.Context, snap *metric.Metrics) error 
 	return nil
 }
 
+// CLose закрывает хранлище в памяти. Не имеет никакого эффекта и всегда возвращает nil.
+// Требуется для реализации интерфейса Storage.
 func (ms *MemStorage) Close() error {
 	return nil
 }

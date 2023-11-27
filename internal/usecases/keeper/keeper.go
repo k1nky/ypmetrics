@@ -25,16 +25,39 @@ type logger interface {
 // функционал storage.Storage.
 type Keeper struct {
 	metricStorage
-	config config.KeeperConfig
+	config config.Keeper
 	logger logger
 }
 
-func New(store metricStorage, cfg config.KeeperConfig, logger logger) *Keeper {
+// New возвращает нового хранителя метрик.
+func New(store metricStorage, cfg config.Keeper, logger logger) *Keeper {
 	return &Keeper{
 		metricStorage: store,
 		config:        cfg,
 		logger:        logger,
 	}
+}
+
+// UpdateMetrics обновляет хранимые метрики.
+func (k *Keeper) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
+	// оставляем только уникальные метрики
+	// обновления из дублирующих метрик применяются последовательно
+	metrics.Counters = uniqueCounters(metrics.Counters)
+	metrics.Gauges = uniqueGauge(metrics.Gauges)
+	return k.metricStorage.UpdateMetrics(ctx, metrics)
+}
+
+// Ping проверяет подключение к базе данных.
+func (k *Keeper) Ping(ctx context.Context) error {
+	cfg := storage.Config{
+		DSN: k.config.DatabaseDSN,
+	}
+	db := storage.NewDBStorage(k.logger, nil)
+	if err := db.Open(cfg); err != nil {
+		return err
+	}
+	defer db.Close()
+	return db.PingContext(ctx)
 }
 
 func uniqueCounters(counters []*metric.Counter) []*metric.Counter {
@@ -68,25 +91,4 @@ func uniqueGauge(gauges []*metric.Gauge) []*metric.Gauge {
 		}
 	}
 	return result
-}
-
-func (k *Keeper) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
-	// оставляем только уникальные метрики
-	// обновления из дублирующих метрик применяются последовательно
-	metrics.Counters = uniqueCounters(metrics.Counters)
-	metrics.Gauges = uniqueGauge(metrics.Gauges)
-	return k.metricStorage.UpdateMetrics(ctx, metrics)
-}
-
-// Ping проверяет подключение к базе данных.
-func (k *Keeper) Ping(ctx context.Context) error {
-	cfg := storage.Config{
-		DSN: k.config.DatabaseDSN,
-	}
-	db := storage.NewDBStorage(k.logger, nil)
-	if err := db.Open(cfg); err != nil {
-		return err
-	}
-	defer db.Close()
-	return db.PingContext(ctx)
 }

@@ -10,12 +10,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/logger"
 	"github.com/k1nky/ypmetrics/internal/storage/mock"
 	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestTypeIsValid(t *testing.T) {
@@ -120,7 +121,7 @@ func TestUpdate(t *testing.T) {
 	store.EXPECT().UpdateCounter(gomock.Any(), gomock.Any(), gomock.Any())
 	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any(), gomock.Any())
 
-	keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
+	keeper := keeper.New(store, config.Keeper{}, &logger.Blackhole{})
 	h := New(*keeper)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -223,7 +224,7 @@ func TestUpdateJSON(t *testing.T) {
 	store.EXPECT().UpdateCounter(gomock.Any(), gomock.Any(), gomock.Any())
 	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any(), gomock.Any())
 
-	keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
+	keeper := keeper.New(store, config.Keeper{}, &logger.Blackhole{})
 	h := New(*keeper)
 	gin.SetMode(gin.TestMode)
 
@@ -323,7 +324,7 @@ func TestValue(t *testing.T) {
 			case "g100":
 				store.EXPECT().GetGauge(gomock.Any(), "g100").Return(nil)
 			}
-			keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
+			keeper := keeper.New(store, config.Keeper{}, &logger.Blackhole{})
 			h := New(*keeper)
 
 			w := httptest.NewRecorder()
@@ -415,7 +416,7 @@ func TestValueJSON(t *testing.T) {
 			case "g100":
 				store.EXPECT().GetGauge(gomock.Any(), "g100").Return(nil)
 			}
-			keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
+			keeper := keeper.New(store, config.Keeper{}, &logger.Blackhole{})
 			h := New(*keeper)
 
 			w := httptest.NewRecorder()
@@ -484,7 +485,7 @@ func TestAllMetrics(t *testing.T) {
 			w := httptest.NewRecorder()
 			c, r := gin.CreateTestContext(w)
 			store.EXPECT().Snapshot(gomock.Any(), gomock.Any()).SetArg(1, tt.ms)
-			keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
+			keeper := keeper.New(store, config.Keeper{}, &logger.Blackhole{})
 			h := New(*keeper)
 			r.GET("/", h.AllMetrics())
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
@@ -526,7 +527,7 @@ func TestUpdatesJSON(t *testing.T) {
 	store := mock.NewMockStorage(ctrl)
 	store.EXPECT().UpdateMetrics(gomock.Any(), gomock.Any()).Return(nil)
 
-	keeper := keeper.New(store, config.KeeperConfig{}, &logger.Blackhole{})
+	keeper := keeper.New(store, config.Keeper{}, &logger.Blackhole{})
 	h := New(*keeper)
 	gin.SetMode(gin.TestMode)
 

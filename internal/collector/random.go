@@ -8,16 +8,21 @@ import (
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
 
-// Сборщик произвольного значения для метрики RandomValue
-type Random struct{}
-
-func (rc *Random) Collect(ctx context.Context) (metric.Metrics, error) {
-	return metric.Metrics{
-		Gauges: []*metric.Gauge{metric.NewGauge("RandomValue", randomFloat())},
-	}, nil
+// Random cборщик случайного значения для метрики типа Gauge.
+// Используемый генератор случайных чисел инициализируется текущим значением времени.
+type Random struct {
+	r *rand.Rand
 }
 
-func randomFloat() float64 {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return r.NormFloat64()
+// Init инициализирует сборщика.
+func (c *Random) Init() error {
+	c.r = rand.New(rand.NewSource(time.Now().UnixNano()))
+	return nil
+}
+
+// Collect возвращает метрики, собранные сборщиком.
+func (c *Random) Collect(ctx context.Context) (metric.Metrics, error) {
+	return metric.Metrics{
+		Gauges: []*metric.Gauge{metric.NewGauge("RandomValue", c.r.NormFloat64())},
+	}, nil
 }

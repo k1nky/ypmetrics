@@ -9,6 +9,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
+
 	metric "github.com/k1nky/ypmetrics/internal/entities/metric"
 	storage "github.com/k1nky/ypmetrics/internal/storage"
 )

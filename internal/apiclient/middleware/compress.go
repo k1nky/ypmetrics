@@ -15,15 +15,12 @@ type compressor struct {
 	buf *bytes.Buffer
 }
 
-func (c *compressor) Reset() {
-	c.buf.Reset()
-	c.w.Reset(c.buf)
-}
-
+// Gzip middleware для сжатия тела запроса.
 type Gzip struct {
 	compressors sync.Pool
 }
 
+// NewGzip возвращает новую middleware для сжатия тела запроса.
 func NewGzip() *Gzip {
 	return &Gzip{
 		compressors: sync.Pool{
@@ -37,13 +34,12 @@ func NewGzip() *Gzip {
 	}
 }
 
-func (gz *Gzip) shouldCompress(r *http.Request) bool {
-	if r.ContentLength != 0 && r.Method == http.MethodPost {
-		return true
-	}
-	return false
+func (c *compressor) Reset() {
+	c.buf.Reset()
+	c.w.Reset(c.buf)
 }
 
+// Use сжимает тело запроса.
 func (gz *Gzip) Use() resty.PreRequestHook {
 	return func(c *resty.Client, r *http.Request) error {
 		if !gz.shouldCompress(r) {
@@ -69,8 +65,16 @@ func (gz *Gzip) Use() resty.PreRequestHook {
 		}
 
 		r.Body = io.NopCloser(body)
+		// обновляем размер передаваемых данных
 		r.ContentLength = int64(body.Len())
 		r.Header.Set("content-encoding", "gzip")
 		return nil
 	}
+}
+
+func (gz *Gzip) shouldCompress(r *http.Request) bool {
+	if r.ContentLength != 0 && r.Method == http.MethodPost {
+		return true
+	}
+	return false
 }

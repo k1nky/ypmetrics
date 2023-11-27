@@ -1,4 +1,4 @@
-// Пакет metric реализует метрики Gauge и Counter
+// Пакет metric реализует метрики Gauge и Counter.
 package metric
 
 import (
@@ -21,13 +21,15 @@ type Gauge struct {
 	Value float64
 }
 
-// Metrics списки метрики по типу
+// Metrics набор метрик.
 type Metrics struct {
+	// Counters метрики типа Counter.
 	Counters []*Counter
-	Gauges   []*Gauge
+	// Gauges метрики типа Gauges.
+	Gauges []*Gauge
 }
 
-// NewCounter возвращает новый счетчик
+// NewCounter возвращает новый счетчик с именем name и значением initValue.
 func NewCounter(name string, initValue int64) *Counter {
 	return &Counter{
 		namedMetric: namedMetric{Name: name},
@@ -35,7 +37,7 @@ func NewCounter(name string, initValue int64) *Counter {
 	}
 }
 
-// NewGauge возвращает новый "измеритель"
+// NewGauge возвращает новый "измеритель" с именем name и значением initValue.
 func NewGauge(name string, initValue float64) *Gauge {
 	return &Gauge{
 		namedMetric: namedMetric{Name: name},
@@ -43,6 +45,7 @@ func NewGauge(name string, initValue float64) *Gauge {
 	}
 }
 
+// NewMetrics возвращает новый пустой набор метрик.
 func NewMetrics() *Metrics {
 	return &Metrics{
 		Counters: make([]*Counter, 0),
@@ -50,17 +53,17 @@ func NewMetrics() *Metrics {
 	}
 }
 
-// GetName возвращает имя метрики
+// GetName возвращает имя метрики.
 func (nm namedMetric) GetName() string {
 	return nm.Name
 }
 
-// String возвращает строковое значение счетчика
+// String возвращает строковое значение счетчика.
 func (c *Counter) String() string {
 	return fmt.Sprintf("%d", c.Value)
 }
 
-// String возвращает строковое предствление "измерителя"
+// String возвращает строковое предствление "измерителя".
 func (g *Gauge) String() string {
 	return fmt.Sprintf("%g", g.Value)
 }

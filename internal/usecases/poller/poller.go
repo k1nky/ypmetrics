@@ -15,7 +15,7 @@ type Poller struct {
 	collectors []Collector
 	logger     logger
 	client     sender
-	Config     config.PollerConfig
+	Config     config.Poller
 }
 
 // Тип для ключа контекста
@@ -26,16 +26,20 @@ const (
 )
 
 const (
+	//
 	NoLimitToReport = 0
 )
 
+// Количество воркеров по умолчанию
 const (
-	MaxPollWorkers   = 2
+	// воркеры сбора метрик
+	MaxPollWorkers = 2
+	// воркеры отправки метрик
 	MaxReportWorkers = 2
 )
 
 // New возвращает нового Poller для сбора метрик. По умолчанию в качестве хранилища используется MemStorage.
-func New(cfg config.PollerConfig, store metricStorage, log logger, client sender) *Poller {
+func New(cfg config.Poller, store metricStorage, log logger, client sender) *Poller {
 	return &Poller{
 		client:     client,
 		logger:     log,
@@ -47,7 +51,13 @@ func New(cfg config.PollerConfig, store metricStorage, log logger, client sender
 
 // Добавляет сборщика для опроса
 func (p *Poller) AddCollector(c ...Collector) {
-	p.collectors = append(p.collectors, c...)
+	for _, collector := range c {
+		if err := collector.Init(); err != nil {
+			p.logger.Errorf("failed initializing collector %T: %s", collector, err)
+			continue
+		}
+		p.collectors = append(p.collectors, collector)
+	}
 }
 
 // Run запускает Poller
@@ -95,6 +105,7 @@ func (p Poller) poll(ctx context.Context, maxWorkers int) <-chan metric.Metrics 
 			select {
 			case <-ctx.Done():
 				close(jobs)
+				time.Sleep(100 * time.Millisecond)
 				close(result)
 				return
 			case <-t.C:

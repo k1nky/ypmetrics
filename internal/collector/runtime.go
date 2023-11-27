@@ -7,10 +7,16 @@ import (
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
 
-// Сборщик метрик из пакета runtime
+// Runtime cборщик метрик на основе стадартного пакета  runtime.
 type Runtime struct{}
 
-func (rc *Runtime) Collect(ctx context.Context) (metric.Metrics, error) {
+// Init инициализирует сборщика.
+func (c *Runtime) Init() error {
+	return nil
+}
+
+// Collect возвращает метрики, собранные сборщиком.
+func (c *Runtime) Collect(ctx context.Context) (metric.Metrics, error) {
 	memStat := &runtime.MemStats{}
 	runtime.ReadMemStats(memStat)
 	return metric.Metrics{

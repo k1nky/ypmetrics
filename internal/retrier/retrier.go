@@ -1,10 +1,14 @@
+// Модуль retrier предоставляет инструменты для повторного вызова функции в случае,
+// если предыдущий вызов завершился с ошибкой.
 package retrier
 
 import "time"
 
+// ShouldRetry сигнатура функции, с помощью который определяется следует ли повторить вызов целевой функции.
+// Функция должна проверить ошибку err и вернуть true - попробовать еще раз или false - остановиться.
 type ShouldRetry func(err error) bool
 
-// Retrier контроллер повторного выполнения
+// Retrier контроллер повторного выполнения.
 //
 //	for r := retrier.New(myShouldRetry); r.Next(err); {
 //		err = doSomething()
@@ -18,7 +22,7 @@ type Retrier struct {
 	shouldRetry ShouldRetry
 }
 
-// Возвращает новый контроллер повторного выполнения
+// New Возвращает новый контроллер повторного выполнения.
 func New() *Retrier {
 	return &Retrier{
 		attempt: 0,
@@ -27,6 +31,8 @@ func New() *Retrier {
 	}
 }
 
+// Init задает для контроллера функцию, с помощью которой
+// будет определяться необходимость повторного вызова функции.
 func (r *Retrier) Init(shouldRetry func(error) bool) {
 	r.attempt = 0
 	r.shouldRetry = shouldRetry

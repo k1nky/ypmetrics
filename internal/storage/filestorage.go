@@ -21,6 +21,9 @@ type FileStorage struct {
 	logger    storageLogger
 }
 
+// Можно было бы реализовать синхронный и асинхронный режим в рамках одно типа,
+// но логика методов становится более ветвистой и тестировать не удобно.
+
 // AsyncFileStorage хранит текущие метрики в памяти, но периодически сохраняет их в файл.
 type AsyncFileStorage struct {
 	FileStorage
@@ -32,9 +35,6 @@ type SyncFileStorage struct {
 	FileStorage
 	writer *os.File
 }
-
-// Можно было бы реализовать синхронный и асинхронный режим в рамках одно типа,
-// но логика методов становится более ветвистой и тестировать не удобно.
 
 // NewFileStorage возвращает новое файловое хранилище.
 func NewFileStorage(logger storageLogger, retrier storageRetrier) *FileStorage {
@@ -79,7 +79,7 @@ func NewSyncFileStorage(logger storageLogger, retrier storageRetrier) *SyncFileS
 	}
 }
 
-// Flush делает срез метрик и сохраняет его в поток
+// Flush делает срез метрик и сохраняет его в поток.
 func (fs *FileStorage) Flush(w io.Writer) error {
 	snap := metric.Metrics{}
 	ctx := context.Background()
@@ -91,7 +91,7 @@ func (fs *FileStorage) Flush(w io.Writer) error {
 	return nil
 }
 
-// Restore восстанавливает метрики из потока
+// Restore восстанавливает метрики из потока.
 func (fs *FileStorage) Restore(r io.Reader) error {
 	snap := metric.Metrics{}
 	if err := json.NewDecoder(r).Decode(&snap); err != nil {
@@ -130,33 +130,18 @@ func (fs *FileStorage) WriteToFile(f *os.File) error {
 	return err
 }
 
-func (fs *FileStorage) writeToFile(f *os.File) error {
-	fs.writeLock.Lock()
-	defer fs.writeLock.Unlock()
-	if _, err := f.Seek(0, 0); err != nil {
-		return err
-	}
-	if err := f.Truncate(0); err != nil {
-		return err
-	}
-	if err := fs.Flush(f); err != nil {
-		return err
-	}
-	return f.Sync()
-}
-
-// Close закрывает асинхронное файловое хранилище
+// Close закрывает асинхронное файловое хранилище.
 func (afs *AsyncFileStorage) Close() error {
 	close(afs.stopFlush)
 	return nil
 }
 
-// Close закрывает синхронное файловое хранилище
+// Close закрывает синхронное файловое хранилище.
 func (sfs *SyncFileStorage) Close() error {
 	return sfs.writer.Close()
 }
 
-// Open открывает асинхронное файловое хранилище
+// Open открывает асинхронное файловое хранилище.
 func (afs *AsyncFileStorage) Open(cfg Config) error {
 	f, err := os.OpenFile(cfg.StoragePath, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
@@ -186,7 +171,7 @@ func (afs *AsyncFileStorage) Open(cfg Config) error {
 	return nil
 }
 
-// Open открывает синхронное файловое хранилище
+// Open открывает синхронное файловое хранилище.
 func (sfs *SyncFileStorage) Open(cfg Config) error {
 	f, err := os.OpenFile(cfg.StoragePath, os.O_CREATE|os.O_RDWR, 0660)
 	if err != nil {
@@ -203,7 +188,7 @@ func (sfs *SyncFileStorage) Open(cfg Config) error {
 	return nil
 }
 
-// SetCounter записывает значение метрики типа Counter и сохраняет изменения в файл.
+// SetCounter записывает значение value метрики name типа Counter и сохраняет изменения в файл.
 func (sfs *SyncFileStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
 	if err := sfs.MemStorage.UpdateCounter(ctx, name, value); err != nil {
 		return err
@@ -215,7 +200,7 @@ func (sfs *SyncFileStorage) UpdateCounter(ctx context.Context, name string, valu
 	return nil
 }
 
-// SetGauge записывает значение метрики типа Gauge и сохраняет изменения в файл.
+// SetGauge записывает значение value метрики name типа Gauge и сохраняет изменения в файл.
 func (sfs *SyncFileStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
 	if err := sfs.MemStorage.UpdateGauge(ctx, name, value); err != nil {
 		return err
@@ -227,6 +212,7 @@ func (sfs *SyncFileStorage) UpdateGauge(ctx context.Context, name string, value 
 	return nil
 }
 
+// UpdateMetrics сохраняет метрики metrics в хранилище.
 func (sfs *SyncFileStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
 	if err := sfs.MemStorage.UpdateMetrics(ctx, metrics); err != nil {
 		return err
@@ -236,4 +222,19 @@ func (sfs *SyncFileStorage) UpdateMetrics(ctx context.Context, metrics metric.Me
 		return err
 	}
 	return nil
+}
+
+func (fs *FileStorage) writeToFile(f *os.File) error {
+	fs.writeLock.Lock()
+	defer fs.writeLock.Unlock()
+	if _, err := f.Seek(0, 0); err != nil {
+		return err
+	}
+	if err := f.Truncate(0); err != nil {
+		return err
+	}
+	if err := fs.Flush(f); err != nil {
+		return err
+	}
+	return f.Sync()
 }

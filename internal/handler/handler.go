@@ -10,23 +10,25 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/protocol"
 	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
 )
 
-// Обработчик запросов к REST API набора метрик
+// Обработчик http-запросов к серверу метрик
 type Handler struct {
 	keeper keeper.Keeper
 }
 
+// New возвращает новый обработчик http-запросов к серверу метрик
 func New(keeper keeper.Keeper) Handler {
 	return Handler{
 		keeper: keeper,
 	}
 }
 
-// Обработчик вывода всех метрик на сервере
+// AllMetrics обработчик вывода всех метрик на сервере.
 func (h Handler) AllMetrics() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		metrics := metric.Metrics{}
@@ -43,7 +45,7 @@ func (h Handler) AllMetrics() gin.HandlerFunc {
 	}
 }
 
-// Обработчик вывода текущего значения запрашиваемой метрики
+// Value Обработчик вывода текущего значения запрашиваемой метрики.
 func (h Handler) Value() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		t := metricType(ctx.Param("type"))
@@ -72,7 +74,7 @@ func (h Handler) Value() gin.HandlerFunc {
 	}
 }
 
-// Обработчик вывода текущего значения запрашиваемой метрики в формате JSON
+// ValueJSON Обработчик вывода текущего значения запрашиваемой метрики в формате JSON.
 func (h Handler) ValueJSON() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var m protocol.Metrics
@@ -105,7 +107,7 @@ func (h Handler) ValueJSON() gin.HandlerFunc {
 	}
 }
 
-// Обработчик обновления значения указаной метрики
+// Update Обработчик обновления значения указаной метрики.
 func (h Handler) Update() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		t := metricType(ctx.Param("type"))
@@ -139,7 +141,7 @@ func (h Handler) Update() gin.HandlerFunc {
 	}
 }
 
-// Обработчик обновления значения указаной метрики из JSON
+// UpdateJSON Обработчик обновления значения указаной метрики из JSON.
 func (h Handler) UpdateJSON() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var m protocol.Metrics
@@ -180,7 +182,7 @@ func (h Handler) UpdateJSON() gin.HandlerFunc {
 	}
 }
 
-// Обработчки проверки подключения к БД
+// Ping Обработчки проверки подключения к БД.
 func (h Handler) Ping() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		c, cancel := context.WithTimeout(ctx.Request.Context(), time.Second)
@@ -193,6 +195,7 @@ func (h Handler) Ping() gin.HandlerFunc {
 	}
 }
 
+// UpdatesJSON Обработчик обновления метрик из JSON.
 func (h Handler) UpdatesJSON() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		recievedMetrics := make([]protocol.Metrics, 0, 10)

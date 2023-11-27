@@ -7,11 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
+
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/logger"
 	"github.com/k1nky/ypmetrics/internal/retrier"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
 )
 
 type dbStorageTestSuite struct {
@@ -22,7 +23,7 @@ type dbStorageTestSuite struct {
 func openTestDB() (*DBStorage, error) {
 	db := NewDBStorage(&logger.Blackhole{}, retrier.New())
 	cfg := Config{
-		DSN: "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable",
+		DSN: os.Getenv("TEST_DB_DSN"),
 	}
 	if err := db.Open(cfg); err != nil {
 		return nil, err
@@ -44,13 +45,17 @@ func (suite *dbStorageTestSuite) SetupTest() {
 }
 
 func shouldSkipDBTest(t *testing.T) bool {
-	if len(os.Getenv("TEST_DB_READY")) == 0 {
+	if len(os.Getenv("TEST_DB_DSN")) == 0 {
 		t.Skip()
 		return true
 	}
 	return false
 }
 
+// Для запуска тестов DBStorage требуется временная база данных параметры подключения,
+// к которой можно передать через переменную окружения TEST_DB_DSN.
+// Базу можно запустить в докере, выполнив `make rundb`.
+// Например, `TEST_DB_DSN="postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable" make test`
 func TestDBStorage(t *testing.T) {
 	suite.Run(t, new(dbStorageTestSuite))
 }
@@ -92,6 +97,9 @@ func generateMetrics(metrics *metric.Metrics, count int) {
 		metrics.Counters = append(metrics.Counters, metric.NewCounter(fmt.Sprintf("counter_%d", i), int64(i)))
 	}
 }
+
+// BenchmarkBulkUpdate* использовались для выбора наиболее эффективного метода
+// множественного обновления/вставки метрик в хранилище
 func BenchmarkBulkUpdateWithUnnet(b *testing.B) {
 
 	ctx := context.TODO()

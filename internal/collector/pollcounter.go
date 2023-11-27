@@ -6,11 +6,17 @@ import (
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 )
 
-// Сборщик PollCounter всегда отдает счетчик со значением 1
-// таким образом можно посчитать количество опросов
+// PollCounter сборщик, который всегда отдает счетчик со значением 1.
+// Таким образом можно посчитать количество опросов.
 type PollCounter struct{}
 
-func (pc *PollCounter) Collect(ctx context.Context) (metric.Metrics, error) {
+// Init инициализирует сборщика.
+func (c *PollCounter) Init() error {
+	return nil
+}
+
+// Collect возвращает метрики, собранные сборщиком.
+func (c *PollCounter) Collect(ctx context.Context) (metric.Metrics, error) {
 	return metric.Metrics{
 		Counters: []*metric.Counter{metric.NewCounter("PollCount", 1)},
 	}, nil

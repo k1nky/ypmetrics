@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,9 +18,13 @@ import (
 	"github.com/k1nky/ypmetrics/internal/usecases/poller"
 )
 
+const (
+	DefaultProfilerAddress = "localhost:8099"
+)
+
 func main() {
 	l := logger.New()
-	cfg := config.PollerConfig{}
+	cfg := config.Poller{}
 	if err := config.ParsePollerConfig(&cfg); err != nil {
 		l.Errorf("config: %s", err)
 		os.Exit(1)
@@ -30,7 +37,7 @@ func main() {
 	Run(l, cfg)
 }
 
-func Run(l *logger.Logger, cfg config.PollerConfig) {
+func Run(l *logger.Logger, cfg config.Poller) {
 	// для агента храним метрики в памяти
 	store := storage.NewMemStorage()
 	defer store.Close()
@@ -49,6 +56,27 @@ func Run(l *logger.Logger, cfg config.PollerConfig) {
 
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	p.Run(ctx)
+	if cfg.EnableProfiling {
+		exposeProfiler(ctx, l)
+	}
 	<-ctx.Done()
 	time.Sleep(time.Second)
+}
+
+func exposeProfiler(ctx context.Context, l *logger.Logger) {
+	server := http.Server{
+		Addr: DefaultProfilerAddress,
+	}
+	go func() {
+		l.Infof("expose profiler on %s/debug/pprof", DefaultProfilerAddress)
+		if err := server.ListenAndServe(); err != nil {
+			if !errors.Is(err, http.ErrServerClosed) {
+				l.Errorf("unexpected profiler closing: %v", err)
+			}
+		}
+	}()
+	go func() {
+		<-ctx.Done()
+		server.Close()
+	}()
 }
