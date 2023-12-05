@@ -27,6 +27,9 @@ buildserver:
 buildagent:
 	go build -C cmd/agent .
 
+buildlint:
+	go build -C cmd/staticlint .
+
 runserver:
 	go run ./cmd/server
 
@@ -35,6 +38,9 @@ runagent:
 
 rundb:
 	docker compose up -d
+
+runlint:
+	go run ./cmd/staticlint ./...
 
 racetest:
 	go test -v -race ./...
