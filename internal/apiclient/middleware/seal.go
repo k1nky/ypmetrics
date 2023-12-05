@@ -47,7 +47,7 @@ func (s *Seal) Use() resty.PreRequestHook {
 		if _, err := body.ReadFrom(buf); err != nil {
 			return err
 		}
-		r.Body.Close()
+		_ = r.Body.Close()
 		r.Body = io.NopCloser(body)
 		r.Header.Set("HashSHA256", hex.EncodeToString(h.Sum(nil)))
 

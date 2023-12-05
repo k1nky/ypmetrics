@@ -54,11 +54,11 @@ func (gz *Gzip) Use() resty.PreRequestHook {
 		if _, err := body.ReadFrom(r.Body); err != nil {
 			return err
 		}
-		r.Body.Close()
+		_ = r.Body.Close()
 		if _, err := z.w.Write(body.Bytes()); err != nil {
 			return err
 		}
-		z.w.Close()
+		_ = z.w.Close()
 		body.Reset()
 		if _, err := body.ReadFrom(z.buf); err != nil {
 			return err

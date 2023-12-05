@@ -35,11 +35,11 @@ func main() {
 	cfg, err := parseConfig()
 	if err != nil {
 		l.Errorf("config: %s", err)
-		os.Exit(1)
+		exit(1)
 	}
 	if err := l.SetLevel(cfg.LogLevel); err != nil {
-		l.Errorf("config: %s", err)
-		os.Exit(1)
+		l.Errorf("logger: %s", err)
+		exit(1)
 	}
 	l.Debugf("config: %+v", cfg)
 
@@ -116,4 +116,8 @@ func exposeProfiler(r *gin.Engine) {
 	g.GET("/heap", gin.WrapH(pprof.Handler("heap")))
 	g.GET("/mutex", gin.WrapH(pprof.Handler("mutex")))
 	g.GET("/threadcreate", gin.WrapH(pprof.Handler("threadcreate")))
+}
+
+func exit(rc int) {
+	os.Exit(rc)
 }

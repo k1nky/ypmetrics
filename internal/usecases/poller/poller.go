@@ -143,7 +143,9 @@ func (p Poller) pollWorker(ctx context.Context, jobs <-chan Collector) <-chan me
 func (p Poller) storeWorker(ctx context.Context, metrics <-chan metric.Metrics) {
 	go func() {
 		for m := range metrics {
-			p.storage.UpdateMetrics(ctx, m)
+			if err := p.storage.UpdateMetrics(ctx, m); err != nil {
+				p.logger.Errorf("store worker: %s", err)
+			}
 		}
 	}()
 }

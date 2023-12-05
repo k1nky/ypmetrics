@@ -27,11 +27,11 @@ func main() {
 	cfg := config.Poller{}
 	if err := config.ParsePollerConfig(&cfg); err != nil {
 		l.Errorf("config: %s", err)
-		os.Exit(1)
+		exit(1)
 	}
 	if err := l.SetLevel(cfg.LogLevel); err != nil {
-		l.Errorf("config: %s", err)
-		os.Exit(1)
+		l.Errorf("logger: %s", err)
+		exit(1)
 	}
 	l.Debugf("config: %+v", cfg)
 	Run(l, cfg)
@@ -77,6 +77,14 @@ func exposeProfiler(ctx context.Context, l *logger.Logger) {
 	}()
 	go func() {
 		<-ctx.Done()
-		server.Close()
+		if err := server.Close(); err != nil {
+			if !errors.Is(err, http.ErrServerClosed) {
+				l.Errorf("unexpected error: %v", err)
+			}
+		}
 	}()
+}
+
+func exit(rc int) {
+	os.Exit(rc)
 }

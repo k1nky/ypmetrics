@@ -67,11 +67,15 @@ func (gh *Gzip) Use() gin.HandlerFunc {
 
 			gz.Reset(gzwriter.ResponseWriter)
 			// сжатие требуется, в ответ пишем сжатые данные
-			gz.Write(gzwriter.body.Bytes())
-			gz.Close()
+			if _, err := gz.Write(gzwriter.body.Bytes()); err != nil {
+				ctx.AbortWithStatus(http.StatusInternalServerError)
+			}
+			_ = gz.Close()
 		} else {
 			// сжатие не требуется, в ответ пишем данные как есть
-			gzwriter.ResponseWriter.Write(gzwriter.body.Bytes())
+			if _, err := gzwriter.ResponseWriter.Write(gzwriter.body.Bytes()); err != nil {
+				ctx.AbortWithStatus(http.StatusInternalServerError)
+			}
 		}
 	}
 }
