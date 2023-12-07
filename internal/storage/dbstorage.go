@@ -53,21 +53,22 @@ func (dbs *DBStorage) Initialize() error {
 	if err != nil {
 		return err
 	}
-	tx.Exec(`
+	if _, err := tx.Exec(`
 		CREATE TABLE IF NOT EXISTS counter (
 			id serial PRIMARY KEY,
 			name varchar(100),
 			value bigint,
 			UNIQUE (name)
 		);
-	`)
-	tx.Exec(`CREATE TABLE IF NOT EXISTS gauge (
+		CREATE TABLE IF NOT EXISTS gauge (
 			id serial PRIMARY KEY,
 			name varchar(100),
 			value double precision,
 			UNIQUE (name)
 		);
-	`)
+	`); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
@@ -178,12 +179,12 @@ func (dbs *DBStorage) Snapshot(ctx context.Context, metrics *metric.Metrics) err
 	defer counters.Close()
 	for counters.Next() {
 		m := &metric.Counter{}
-		if err := counters.Scan(&m.Name, &m.Value); err != nil {
+		if err = counters.Scan(&m.Name, &m.Value); err != nil {
 			return fail(err)
 		}
 		metrics.Counters = append(metrics.Counters, m)
 	}
-	if err := counters.Err(); err != nil {
+	if err = counters.Err(); err != nil {
 		return fail(err)
 	}
 

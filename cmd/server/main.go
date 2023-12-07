@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -18,6 +20,12 @@ import (
 
 const (
 	DefaultProfilerPrefix = "/debug/pprof"
+)
+
+var (
+	buildVersion string = "N/A"
+	buildDate    string = "N/A"
+	buildCommit  string = "N/A"
 )
 
 func init() {
@@ -35,14 +43,15 @@ func main() {
 	cfg, err := parseConfig()
 	if err != nil {
 		l.Errorf("config: %s", err)
-		os.Exit(1)
+		exit(1)
 	}
 	if err := l.SetLevel(cfg.LogLevel); err != nil {
-		l.Errorf("config: %s", err)
-		os.Exit(1)
+		l.Errorf("logger: %s", err)
+		exit(1)
 	}
 	l.Debugf("config: %+v", cfg)
 
+	showVersion()
 	Run(l, cfg)
 }
 
@@ -116,4 +125,16 @@ func exposeProfiler(r *gin.Engine) {
 	g.GET("/heap", gin.WrapH(pprof.Handler("heap")))
 	g.GET("/mutex", gin.WrapH(pprof.Handler("mutex")))
 	g.GET("/threadcreate", gin.WrapH(pprof.Handler("threadcreate")))
+}
+
+func exit(rc int) {
+	os.Exit(rc)
+}
+
+func showVersion() {
+	s := strings.Builder{}
+	fmt.Fprintf(&s, "Build version: %s\n", buildVersion)
+	fmt.Fprintf(&s, "Build date: %s\n", buildDate)
+	fmt.Fprintf(&s, "Build commit: %s\n", buildCommit)
+	fmt.Println(s.String())
 }

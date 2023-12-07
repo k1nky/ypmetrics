@@ -83,7 +83,9 @@ func NewSyncFileStorage(logger storageLogger, retrier storageRetrier) *SyncFileS
 func (fs *FileStorage) Flush(w io.Writer) error {
 	snap := metric.Metrics{}
 	ctx := context.Background()
-	fs.Snapshot(ctx, &snap)
+	if err := fs.Snapshot(ctx, &snap); err != nil {
+		return err
+	}
 
 	if err := json.NewEncoder(w).Encode(snap); err != nil {
 		return err

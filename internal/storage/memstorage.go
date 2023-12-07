@@ -73,10 +73,14 @@ func (ms *MemStorage) UpdateCounter(ctx context.Context, name string, value int6
 // UpdateMetrics сохраняет метрики metrics в хранилище.
 func (ms *MemStorage) UpdateMetrics(ctx context.Context, metrics metric.Metrics) error {
 	for _, m := range metrics.Counters {
-		ms.UpdateCounter(ctx, m.Name, m.Value)
+		if err := ms.UpdateCounter(ctx, m.Name, m.Value); err != nil {
+			return err
+		}
 	}
 	for _, m := range metrics.Gauges {
-		ms.UpdateGauge(ctx, m.Name, m.Value)
+		if err := ms.UpdateGauge(ctx, m.Name, m.Value); err != nil {
+			return err
+		}
 	}
 	return nil
 }

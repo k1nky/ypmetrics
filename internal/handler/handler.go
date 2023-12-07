@@ -32,7 +32,10 @@ func New(keeper keeper.Keeper) Handler {
 func (h Handler) AllMetrics() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		metrics := metric.Metrics{}
-		h.keeper.Snapshot(ctx.Request.Context(), &metrics)
+		if err := h.keeper.Snapshot(ctx.Request.Context(), &metrics); err != nil {
+			ctx.Status(http.StatusInternalServerError)
+			return
+		}
 		result := strings.Builder{}
 		for _, m := range metrics.Counters {
 			result.WriteString(fmt.Sprintf("%s = %s\n", m.Name, m))

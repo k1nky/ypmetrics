@@ -51,7 +51,9 @@ func (s *Seal) Use() gin.HandlerFunc {
 			return
 		}
 		bw.Header().Set("HashSHA256", h)
-		bw.ResponseWriter.Write(bw.body.Bytes())
+		if _, err := bw.ResponseWriter.Write(bw.body.Bytes()); err != nil {
+			ctx.AbortWithStatus(http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -65,7 +67,7 @@ func (s *Seal) verify(req *http.Request, seal string) (bool, error) {
 	if _, err := body.ReadFrom(buf); err != nil {
 		return false, err
 	}
-	req.Body.Close()
+	_ = req.Body.Close()
 	req.Body = io.NopCloser(body)
 
 	got := hex.EncodeToString(h.Sum(nil))

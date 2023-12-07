@@ -1,5 +1,8 @@
 SHELL:=/bin/bash
 STATICCHECK=$(shell which staticcheck)
+BULID_COMMIT=$(shell git rev-parse HEAD)
+BUILD_DATE=$(shell date +'%Y/%m/%d %H:%M:%S')
+LDFLAGS=-ldflags "-X main.buildCommit=${BULID_COMMIT} -X 'main.buildDate=${BUILD_DATE}'"
 
 .DEFAULT_GOAL := build
 
@@ -22,10 +25,13 @@ cover:
 build: gvt buildagent buildserver
 
 buildserver:
-	go build  -C cmd/server .
+	go build -o ./cmd/server/server ${LDFLAGS} ./cmd/server
 
 buildagent:
-	go build -C cmd/agent .
+	go build -o ./cmd/agent/agent ${LDFLAGS} ./cmd/agent
+
+buildlint:
+	go build -C cmd/staticlint .
 
 runserver:
 	go run ./cmd/server
@@ -35,6 +41,9 @@ runagent:
 
 rundb:
 	docker compose up -d
+
+runlint:
+	go run ./cmd/staticlint ./...
 
 racetest:
 	go test -v -race ./...
