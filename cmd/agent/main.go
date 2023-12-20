@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/k1nky/ypmetrics/internal/apiclient"
 	"github.com/k1nky/ypmetrics/internal/collector"
 	"github.com/k1nky/ypmetrics/internal/config"
+	"github.com/k1nky/ypmetrics/internal/crypto"
 	"github.com/k1nky/ypmetrics/internal/logger"
 	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/k1nky/ypmetrics/internal/usecases/poller"
@@ -52,8 +54,12 @@ func Run(l *logger.Logger, cfg config.Poller) {
 	defer store.Close()
 
 	client := apiclient.New(string(cfg.Address), l)
+	key, err := readCryptoKey(cfg.CryptoKey)
+	if err != nil {
+		l.Errorf("config: %s", err)
+	}
 	// сначала сжимаем данные, затем подписываем
-	client.SetGzip().SetKey(cfg.Key)
+	client.SetGzip().SetEncrypt(key).SetKey(cfg.Key)
 
 	p := poller.New(cfg, store, l, client)
 	p.AddCollector(
@@ -104,4 +110,17 @@ func showVersion() {
 	fmt.Fprintf(&s, "Build date: %s\n", buildDate)
 	fmt.Fprintf(&s, "Build commit: %s\n", buildCommit)
 	fmt.Println(s.String())
+}
+
+func readCryptoKey(path string) (*rsa.PublicKey, error) {
+	if len(path) == 0 {
+		return nil, nil
+	}
+	f, err := os.Open(path)
+	defer func() { _ = f.Close() }()
+	if err != nil {
+		return nil, err
+	}
+	key, err := crypto.ReadPublicKey(f)
+	return key, err
 }

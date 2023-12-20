@@ -23,6 +23,8 @@ type Poller struct {
 	// Address адрес и порт, на который будут отправляться метрики. По умолчанию localhost:8080.
 	// Допустимый формат [хост]:<порт>.
 	Address NetAddress `env:"ADDRESS"`
+	// CryptoKey Путь до файла с приватным ключом (для расшифровки сообщений от агента).
+	CryptoKey string `env:"CRYPTO_KEY"`
 	// ReportIntervalInSec Интервал отправки метрик на сервер (в секундах).
 	ReportIntervalInSec uint `env:"REPORT_INTERVAL"`
 	// PollIntervalInSec Интервал сбора метрик (в секундах).
@@ -63,6 +65,7 @@ func parsePollerConfigFromCmd(c *Poller) error {
 	cmd := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	address := NetAddress(DefaultPollerAddress)
 	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
+	cryptoKey := cmd.StringP("crypto-key", "", "", "gуть до файла с приватным ключом (для расшифровки сообщений от агента).")
 	reportInterval := cmd.UintP("report-interval", "r", DefaultPollerReportIntervalInSec, "интервал отправки метрик на сервер")
 	pollInterval := cmd.UintP("poll-interval", "p", DefaultPollerPollIntervalInSec, "интервал сбора метрик")
 	logLevel := cmd.StringP("log-level", "", DefaultPollerLogLevel, "уровень логирования")
@@ -76,6 +79,7 @@ func parsePollerConfigFromCmd(c *Poller) error {
 
 	*c = Poller{
 		Address:             address,
+		CryptoKey:           *cryptoKey,
 		ReportIntervalInSec: *reportInterval,
 		PollIntervalInSec:   *pollInterval,
 		LogLevel:            *logLevel,

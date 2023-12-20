@@ -21,6 +21,8 @@ type Keeper struct {
 	// Address адрес и порт, который будет слушать сервер. По умолчанию localhost:8080.
 	// Допустимый формат [хост]:<порт>.
 	Address NetAddress `env:"ADDRESS"`
+	// CryptoKey Путь до файла с публичным ключом (для зашифровки передаваемых агентом данных).
+	CryptoKey string `env:"CRYPTO_KEY"`
 	// StoreIntervalInSec интервал в секундах сброса метрик из памяти на диск. По умолчанию 300.
 	// Актуально только для файлового хранилища метрик.
 	StoreIntervalInSec uint `env:"STORE_INTERVAL"`
@@ -61,6 +63,7 @@ func parseKeeperConfigFromCmd(c *Keeper) error {
 
 	address := NetAddress(DefaultKeeperAddress)
 	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
+	cryproKey := cmd.StringP("crypto-key", "", "", "путь до файла с публичным ключом")
 	storeInterval := cmd.UintP("store-interval", "i", DefaultKeeperStoreIntervalInSec, "интервал времени в секундах, по истечении которого текущие показания сервера сохраняются на диск (по умолчанию 300 секунд, значение 0 делает запись синхронной).")
 	storagePath := cmd.StringP("storage-path", "f", "", "полное имя файла, куда сохраняются текущие значения")
 	// для аргумента --restore запрашиваем сначала значение как строку, а потом уже конверитруем в bool
@@ -82,6 +85,7 @@ func parseKeeperConfigFromCmd(c *Keeper) error {
 
 	*c = Keeper{
 		Address:            address,
+		CryptoKey:          *cryproKey,
 		StoreIntervalInSec: *storeInterval,
 		FileStoragePath:    *storagePath,
 		Restore:            restoreValue,

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rsa"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
@@ -10,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/k1nky/ypmetrics/internal/config"
+	"github.com/k1nky/ypmetrics/internal/crypto"
 	"github.com/k1nky/ypmetrics/internal/handler"
 	"github.com/k1nky/ypmetrics/internal/handler/middleware"
 	"github.com/k1nky/ypmetrics/internal/logger"
@@ -70,7 +72,12 @@ func Run(l *logger.Logger, cfg config.Keeper) {
 
 	uc := keeper.New(store, cfg, l)
 	h := handler.New(*uc)
-	router := newRouter(h, l, cfg.Key)
+	decryptKey, err := readCryptoKey(cfg.CryptoKey)
+	if err != nil {
+		l.Errorf("config: %s", err)
+		exit(1)
+	}
+	router := newRouter(h, l, cfg.Key, decryptKey)
 	if cfg.EnableProfiling {
 		l.Infof("expose profiler on %s", DefaultProfilerPrefix)
 		exposeProfiler(router)
@@ -82,13 +89,16 @@ func Run(l *logger.Logger, cfg config.Keeper) {
 	}
 }
 
-func newRouter(h handler.Handler, l *logger.Logger, key string) *gin.Engine {
+func newRouter(h handler.Handler, l *logger.Logger, sealKey string, decryptKey *rsa.PrivateKey) *gin.Engine {
 	router := gin.New()
 	// логируем запрос
 	router.Use(middleware.Logger(l))
-	if len(key) > 0 {
+	if len(sealKey) > 0 {
 		// если указан ключ, то проверяем подпись полученных данных
-		router.Use(middleware.NewSeal(key).Use())
+		router.Use(middleware.NewSeal(sealKey).Use())
+	}
+	if decryptKey != nil {
+		router.Use(middleware.NewDecrypter(decryptKey).Use())
 	}
 	// при необходимости раcпаковываем/запаковываем данные
 	router.Use(middleware.NewGzip([]string{"application/json", "text/html"}).Use())
@@ -137,4 +147,17 @@ func showVersion() {
 	fmt.Fprintf(&s, "Build date: %s\n", buildDate)
 	fmt.Fprintf(&s, "Build commit: %s\n", buildCommit)
 	fmt.Println(s.String())
+}
+
+func readCryptoKey(path string) (*rsa.PrivateKey, error) {
+	if len(path) == 0 {
+		return nil, nil
+	}
+	f, err := os.Open(path)
+	defer func() { _ = f.Close() }()
+	if err != nil {
+		return nil, err
+	}
+	key, err := crypto.ReadPrivateKey(f)
+	return key, err
 }
