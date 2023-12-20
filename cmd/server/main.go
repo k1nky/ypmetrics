@@ -98,6 +98,7 @@ func newRouter(h handler.Handler, l *logger.Logger, sealKey string, decryptKey *
 		router.Use(middleware.NewSeal(sealKey).Use())
 	}
 	if decryptKey != nil {
+		// указан ключ шифрования, то расшифровываем тело запроса
 		router.Use(middleware.NewDecrypter(decryptKey).Use())
 	}
 	// при необходимости раcпаковываем/запаковываем данные
@@ -141,14 +142,6 @@ func exit(rc int) {
 	os.Exit(rc)
 }
 
-func showVersion() {
-	s := strings.Builder{}
-	fmt.Fprintf(&s, "Build version: %s\n", buildVersion)
-	fmt.Fprintf(&s, "Build date: %s\n", buildDate)
-	fmt.Fprintf(&s, "Build commit: %s\n", buildCommit)
-	fmt.Println(s.String())
-}
-
 func readCryptoKey(path string) (*rsa.PrivateKey, error) {
 	if len(path) == 0 {
 		return nil, nil
@@ -160,4 +153,12 @@ func readCryptoKey(path string) (*rsa.PrivateKey, error) {
 	}
 	key, err := crypto.ReadPrivateKey(f)
 	return key, err
+}
+
+func showVersion() {
+	s := strings.Builder{}
+	fmt.Fprintf(&s, "Build version: %s\n", buildVersion)
+	fmt.Fprintf(&s, "Build date: %s\n", buildDate)
+	fmt.Fprintf(&s, "Build commit: %s\n", buildCommit)
+	fmt.Println(s.String())
 }

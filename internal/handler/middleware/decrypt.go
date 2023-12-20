@@ -11,14 +11,13 @@ import (
 	"github.com/k1nky/ypmetrics/internal/crypto"
 )
 
-// Seal это middleware для подписи тела запроса.
-// Подпись будет проставляться в заголовок HashSHA256.
+// Decrypter это middleware для асимметричного шифрования тела запроса.
 type Decrypter struct {
 	buffers sync.Pool
 	key     *rsa.PrivateKey
 }
 
-// NewSeal возвращает новую middleware для подписи с ключом secret.
+// NewDecrypter возвращает новую middleware для расшифрования закрытым ключом key тела запроса.
 func NewDecrypter(key *rsa.PrivateKey) *Decrypter {
 	return &Decrypter{
 		buffers: sync.Pool{
@@ -30,7 +29,7 @@ func NewDecrypter(key *rsa.PrivateKey) *Decrypter {
 	}
 }
 
-// Use добавляет заголовок HashSHA256 с подписью передаваемых данных по алгоритму sha256.
+// Use расшифровывает тело запроса.
 // Применимо для POST запросов с непустым телом.
 func (d *Decrypter) Use() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
@@ -47,7 +46,7 @@ func (d *Decrypter) Use() gin.HandlerFunc {
 		}
 		body, err := crypto.DecryptRSA(d.key, buf.Bytes())
 		if err != nil {
-			ctx.AbortWithStatus(http.StatusInternalServerError)
+			ctx.AbortWithStatus(http.StatusBadRequest)
 			return
 		}
 		ctx.Request.Body = io.NopCloser(bytes.NewBuffer(body))
@@ -55,7 +54,7 @@ func (d *Decrypter) Use() gin.HandlerFunc {
 	}
 }
 
-// Определяет потребность в формировании подписи для указаного запроса
+// Определяет потребность в расшировании запроса.
 func (d *Decrypter) shouldUse(r *http.Request) bool {
 	if r.ContentLength != 0 && r.Method == http.MethodPost {
 		return true

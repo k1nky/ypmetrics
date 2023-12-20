@@ -11,14 +11,13 @@ import (
 	"github.com/k1nky/ypmetrics/internal/crypto"
 )
 
-// Seal это middleware для подписи тела запроса.
-// Подпись будет проставляться в заголовок HashSHA256.
+// Encrypter это middleware для асимметричного шифрования тела запроса.
 type Encrypter struct {
 	buffers sync.Pool
 	key     *rsa.PublicKey
 }
 
-// NewSeal возвращает новую middleware для подписи с ключом secret.
+// NewEncrypter возвращает новую middleware для шифрования открытым ключом key.
 func NewEncrypter(key *rsa.PublicKey) *Encrypter {
 	return &Encrypter{
 		buffers: sync.Pool{
@@ -30,7 +29,7 @@ func NewEncrypter(key *rsa.PublicKey) *Encrypter {
 	}
 }
 
-// Use добавляет заголовок HashSHA256 с подписью передаваемых данных по алгоритму sha256.
+// Use шифрует тело запроса.
 // Применимо для POST запросов с непустым телом.
 func (e *Encrypter) Use() resty.PreRequestHook {
 	return func(c *resty.Client, r *http.Request) error {
@@ -56,7 +55,7 @@ func (e *Encrypter) Use() resty.PreRequestHook {
 	}
 }
 
-// Определяет потребность в формировании подписи для указаного запроса
+// Определяет потребность в шифровании тела запроса.
 func (e *Encrypter) shouldUse(r *http.Request) bool {
 	if r.ContentLength != 0 && r.Method == http.MethodPost {
 		return true

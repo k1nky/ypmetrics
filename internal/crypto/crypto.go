@@ -1,4 +1,9 @@
 // Пакет crypto представляет инстуременты для асимметричного шифрования.
+// В общем случае асимметричное шифрование используют для шифрования небольшого объема данных.
+// "The message must be no longer than the length of the public modulus minus twice the hash length, minus a further 2."
+// В таком случае, за раз можно зашифровать не больше чем publicKey.Size() - sha256.Size*2 - 2.
+// При обновление метрик пачками такого размера может не хватить. Поэтому шифровать будем частями не большеми publicKey.Size() - sha256.Size*2 - 2.
+// Расшифровать в данном случае можно если разбивать зашифрованные данные частями размером privateKey.Size().
 package crypto
 
 import (
@@ -12,10 +17,11 @@ import (
 )
 
 var (
-	// ErrInvalidKeyFormat неверный формат ключа
+	// ErrInvalidKeyFormat неверный формат ключа.
 	ErrInvalidKeyFormat = errors.New("invalid key format")
 )
 
+// ReadPrivateKey разбирает и возвращает приватный ключ из io.Reader.
 func ReadPrivateKey(r io.Reader) (*rsa.PrivateKey, error) {
 	content, err := io.ReadAll(r)
 	if err != nil {
@@ -32,6 +38,7 @@ func ReadPrivateKey(r io.Reader) (*rsa.PrivateKey, error) {
 	return key.(*rsa.PrivateKey), err
 }
 
+// ReadPublicKey разбирает и возвращает публичный ключ из io.Reader.
 func ReadPublicKey(r io.Reader) (*rsa.PublicKey, error) {
 	content, err := io.ReadAll(r)
 	if err != nil {
@@ -48,10 +55,12 @@ func ReadPublicKey(r io.Reader) (*rsa.PublicKey, error) {
 	return key.(*rsa.PublicKey), err
 }
 
+// DecryptRSA расшифровывает msg приватным ключом key.
 func DecryptRSA(key *rsa.PrivateKey, msg []byte) ([]byte, error) {
 	var decrypted []byte
 
 	chunkSize := key.Size()
+	// разбиваем исходное сообщение на части размером chunkSize
 	chunks := chunkBytes(msg, chunkSize)
 	hash := sha256.New()
 	rnd := rand.Reader
@@ -61,15 +70,18 @@ func DecryptRSA(key *rsa.PrivateKey, msg []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		// объединяем расшифрованные части в одну последовательность
 		decrypted = append(decrypted, b...)
 	}
 	return decrypted, nil
 }
 
+// EncryptRSA зашифровывает msg публичным ключом key.
 func EncryptRSA(key *rsa.PublicKey, msg []byte) ([]byte, error) {
 	var encrypted []byte
 
 	chunkSize := key.Size() - sha256.Size*2 - 2
+	// разбиваем исходное сообщение на части размером chunkSize
 	chunks := chunkBytes(msg, chunkSize)
 	hash := sha256.New()
 	rnd := rand.Reader
@@ -79,6 +91,7 @@ func EncryptRSA(key *rsa.PublicKey, msg []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		// объединяем расшифрованные части в одну последовательность
 		encrypted = append(encrypted, b...)
 	}
 	return encrypted, nil

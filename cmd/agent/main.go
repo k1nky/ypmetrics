@@ -57,8 +57,9 @@ func Run(l *logger.Logger, cfg config.Poller) {
 	key, err := readCryptoKey(cfg.CryptoKey)
 	if err != nil {
 		l.Errorf("config: %s", err)
+		exit(1)
 	}
-	// сначала сжимаем данные, затем подписываем
+	// сжимаем данные -> шифруем -> подписываем
 	client.SetGzip().SetEncrypt(key).SetKey(cfg.Key)
 
 	p := poller.New(cfg, store, l, client)
@@ -104,14 +105,6 @@ func exit(rc int) {
 	os.Exit(rc)
 }
 
-func showVersion() {
-	s := strings.Builder{}
-	fmt.Fprintf(&s, "Build version: %s\n", buildVersion)
-	fmt.Fprintf(&s, "Build date: %s\n", buildDate)
-	fmt.Fprintf(&s, "Build commit: %s\n", buildCommit)
-	fmt.Println(s.String())
-}
-
 func readCryptoKey(path string) (*rsa.PublicKey, error) {
 	if len(path) == 0 {
 		return nil, nil
@@ -123,4 +116,12 @@ func readCryptoKey(path string) (*rsa.PublicKey, error) {
 	}
 	key, err := crypto.ReadPublicKey(f)
 	return key, err
+}
+
+func showVersion() {
+	s := strings.Builder{}
+	fmt.Fprintf(&s, "Build version: %s\n", buildVersion)
+	fmt.Fprintf(&s, "Build date: %s\n", buildDate)
+	fmt.Fprintf(&s, "Build commit: %s\n", buildCommit)
+	fmt.Println(s.String())
 }

@@ -130,6 +130,8 @@ func (c *Client) PushMetrics(metrics metric.Metrics) (err error) {
 	return c.postData("updates/", "application/json", m)
 }
 
+// SetEncrypt задает публичный ключ для шифрования отправляемых данных.
+// В таком случае шифроваться будет тело запроса каждого POST запроса.
 func (c *Client) SetEncrypt(key *rsa.PublicKey) *Client {
 	if key != nil {
 		c.middlewares = append(c.middlewares, middleware.NewEncrypter(key).Use())
