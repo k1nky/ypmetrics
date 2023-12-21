@@ -54,41 +54,6 @@ func main() {
 	run(ctx, l, cfg)
 }
 
-func run(ctx context.Context, l *logger.Logger, cfg config.Poller) {
-	// для агента храним метрики в памяти
-	store := storage.NewMemStorage()
-	defer store.Close()
-
-	client := apiclient.New(string(cfg.Address), l)
-	key, err := readCryptoKey(cfg.CryptoKey)
-	if err != nil {
-		l.Errorf("config: %s", err)
-		exit(1)
-	}
-	// сжимаем данные -> шифруем -> подписываем
-	client.SetGzip().SetEncrypt(key).SetKey(cfg.Key)
-
-	p := poller.New(cfg, store, l, client)
-	p.AddCollector(
-		&collector.PollCounter{},
-		&collector.Random{},
-		&collector.Runtime{},
-		&collector.Gops{},
-	)
-
-	done := p.Run(ctx)
-	if cfg.EnableProfiling {
-		exposeProfiler(ctx, l)
-	}
-	// ожидаем завершения программы по сигналу
-	<-ctx.Done()
-	// ожидаем завершения отправки метрик или принудительно по таймауту
-	select {
-	case <-done:
-	case <-time.After(DefaultShutdownTimeout):
-	}
-}
-
 func exposeProfiler(ctx context.Context, l *logger.Logger) {
 	server := http.Server{
 		Addr: DefaultProfilerAddress,
@@ -141,6 +106,41 @@ func readCryptoKey(path string) (*rsa.PublicKey, error) {
 	}
 	key, err := crypto.ReadPublicKey(f)
 	return key, err
+}
+
+func run(ctx context.Context, l *logger.Logger, cfg config.Poller) {
+	// для агента храним метрики в памяти
+	store := storage.NewMemStorage()
+	defer store.Close()
+
+	client := apiclient.New(string(cfg.Address), l)
+	key, err := readCryptoKey(cfg.CryptoKey)
+	if err != nil {
+		l.Errorf("config: %s", err)
+		exit(1)
+	}
+	// сжимаем данные -> шифруем -> подписываем
+	client.SetGzip().SetEncrypt(key).SetKey(cfg.Key)
+
+	p := poller.New(cfg, store, l, client)
+	p.AddCollector(
+		&collector.PollCounter{},
+		&collector.Random{},
+		&collector.Runtime{},
+		&collector.Gops{},
+	)
+
+	done := p.Run(ctx)
+	if cfg.EnableProfiling {
+		exposeProfiler(ctx, l)
+	}
+	// ожидаем завершения программы по сигналу
+	<-ctx.Done()
+	// ожидаем завершения отправки метрик или принудительно по таймауту
+	select {
+	case <-done:
+	case <-time.After(DefaultShutdownTimeout):
+	}
 }
 
 func showVersion() {

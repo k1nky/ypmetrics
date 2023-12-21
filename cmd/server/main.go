@@ -45,21 +45,6 @@ func init() {
 	gin.SetMode(gin.ReleaseMode)
 }
 
-func parseConfig(cfg *config.Keeper) error {
-	var (
-		err       error
-		jsonValue []byte
-	)
-	configPath := config.GetConfigPath()
-	if len(configPath) != 0 {
-		// файл с конфигом указан, поэтому читаем сначала его
-		if jsonValue, err = os.ReadFile(configPath); err != nil {
-			return err
-		}
-	}
-	return config.ParseKeeperConfig(cfg, jsonValue)
-}
-
 func main() {
 	l := logger.New()
 	cfg := config.DefaultKeeperConfig
@@ -81,6 +66,74 @@ func main() {
 
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	run(ctx, l, cfg)
+}
+
+func exposeProfiler(r *gin.Engine) {
+	g := r.Group(DefaultProfilerPrefix)
+	g.GET("/", gin.WrapF(pprof.Index))
+	g.GET("/cmdline", gin.WrapF(pprof.Cmdline))
+	g.GET("/profile", gin.WrapF(pprof.Profile))
+	g.GET("/trace", gin.WrapF(pprof.Trace))
+	g.GET("/symbol", gin.WrapF(pprof.Symbol))
+	g.POST("/symbol", gin.WrapF(pprof.Symbol))
+	g.GET("/allocs", gin.WrapH(pprof.Handler("allocs")))
+	g.GET("/block", gin.WrapH(pprof.Handler("block")))
+	g.GET("/goroutine", gin.WrapH(pprof.Handler("goroutine")))
+	g.GET("/heap", gin.WrapH(pprof.Handler("heap")))
+	g.GET("/mutex", gin.WrapH(pprof.Handler("mutex")))
+	g.GET("/threadcreate", gin.WrapH(pprof.Handler("threadcreate")))
+}
+
+func exit(rc int) {
+	os.Exit(rc)
+}
+
+func newRouter(h handler.Handler, l *logger.Logger, sealKey string, decryptKey *rsa.PrivateKey) *gin.Engine {
+	router := gin.New()
+	// логируем запрос
+	router.Use(middleware.Logger(l))
+	if len(sealKey) > 0 {
+		// если указан ключ, то проверяем подпись полученных данных
+		router.Use(middleware.NewSeal(sealKey).Use())
+	}
+	if decryptKey != nil {
+		// указан ключ шифрования, то расшифровываем тело запроса
+		router.Use(middleware.NewDecrypter(decryptKey).Use())
+	}
+	// при необходимости раcпаковываем/запаковываем данные
+	router.Use(middleware.NewGzip([]string{"application/json", "text/html"}).Use())
+
+	router.GET("/", h.AllMetrics())
+	router.GET("/ping", h.Ping())
+	router.POST("/updates/", middleware.RequireContentType("application/json"), h.UpdatesJSON())
+
+	valueRoutes := router.Group("/value")
+	valueRoutes.POST("/", middleware.RequireContentType("application/json"), h.ValueJSON())
+	valueRoutes.GET("/:type/:name", h.Value())
+
+	updateRoutes := router.Group("/update")
+	updateRoutes.POST("/", middleware.RequireContentType("application/json"), h.UpdateJSON())
+	updateRoutes.POST("/:type/", func(c *gin.Context) {
+		c.Status(http.StatusNotFound)
+	})
+	updateRoutes.POST("/:type/:name/:value", h.Update())
+
+	return router
+}
+
+func parseConfig(cfg *config.Keeper) error {
+	var (
+		err       error
+		jsonValue []byte
+	)
+	configPath := config.GetConfigPath()
+	if len(configPath) != 0 {
+		// файл с конфигом указан, поэтому читаем сначала его
+		if jsonValue, err = os.ReadFile(configPath); err != nil {
+			return err
+		}
+	}
+	return config.ParseKeeperConfig(cfg, jsonValue)
 }
 
 func run(ctx context.Context, l *logger.Logger, cfg config.Keeper) {
@@ -139,59 +192,6 @@ func runHTTPServer(ctx context.Context, addr string, handler http.Handler, l *lo
 		defer cancel()
 		srv.Shutdown(c)
 	}()
-}
-
-func newRouter(h handler.Handler, l *logger.Logger, sealKey string, decryptKey *rsa.PrivateKey) *gin.Engine {
-	router := gin.New()
-	// логируем запрос
-	router.Use(middleware.Logger(l))
-	if len(sealKey) > 0 {
-		// если указан ключ, то проверяем подпись полученных данных
-		router.Use(middleware.NewSeal(sealKey).Use())
-	}
-	if decryptKey != nil {
-		// указан ключ шифрования, то расшифровываем тело запроса
-		router.Use(middleware.NewDecrypter(decryptKey).Use())
-	}
-	// при необходимости раcпаковываем/запаковываем данные
-	router.Use(middleware.NewGzip([]string{"application/json", "text/html"}).Use())
-
-	router.GET("/", h.AllMetrics())
-	router.GET("/ping", h.Ping())
-	router.POST("/updates/", middleware.RequireContentType("application/json"), h.UpdatesJSON())
-
-	valueRoutes := router.Group("/value")
-	valueRoutes.POST("/", middleware.RequireContentType("application/json"), h.ValueJSON())
-	valueRoutes.GET("/:type/:name", h.Value())
-
-	updateRoutes := router.Group("/update")
-	updateRoutes.POST("/", middleware.RequireContentType("application/json"), h.UpdateJSON())
-	updateRoutes.POST("/:type/", func(c *gin.Context) {
-		c.Status(http.StatusNotFound)
-	})
-	updateRoutes.POST("/:type/:name/:value", h.Update())
-
-	return router
-}
-
-func exposeProfiler(r *gin.Engine) {
-	g := r.Group(DefaultProfilerPrefix)
-	g.GET("/", gin.WrapF(pprof.Index))
-	g.GET("/cmdline", gin.WrapF(pprof.Cmdline))
-	g.GET("/profile", gin.WrapF(pprof.Profile))
-	g.GET("/trace", gin.WrapF(pprof.Trace))
-	g.GET("/symbol", gin.WrapF(pprof.Symbol))
-	g.POST("/symbol", gin.WrapF(pprof.Symbol))
-	g.GET("/allocs", gin.WrapH(pprof.Handler("allocs")))
-	g.GET("/block", gin.WrapH(pprof.Handler("block")))
-	g.GET("/goroutine", gin.WrapH(pprof.Handler("goroutine")))
-	g.GET("/heap", gin.WrapH(pprof.Handler("heap")))
-	g.GET("/mutex", gin.WrapH(pprof.Handler("mutex")))
-	g.GET("/threadcreate", gin.WrapH(pprof.Handler("threadcreate")))
-}
-
-func exit(rc int) {
-	os.Exit(rc)
 }
 
 func readCryptoKey(path string) (*rsa.PrivateKey, error) {
