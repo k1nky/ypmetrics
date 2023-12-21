@@ -34,8 +34,11 @@ var (
 
 func main() {
 	l := logger.New()
-	cfg := config.Poller{}
-	if err := config.ParsePollerConfig(&cfg); err != nil {
+	cfg := config.DefaultPollerConfig
+	if err := parseConfig(&cfg); err != nil {
+		if config.IsHelpWanted(err) {
+			exit(0)
+		}
 		l.Errorf("config: %s", err)
 		exit(1)
 	}
@@ -103,6 +106,21 @@ func exposeProfiler(ctx context.Context, l *logger.Logger) {
 
 func exit(rc int) {
 	os.Exit(rc)
+}
+
+func parseConfig(c *config.Poller) error {
+	var (
+		err       error
+		jsonValue []byte
+	)
+	configPath := config.GetConfigPath()
+	if len(configPath) != 0 {
+		// файл с конфигом указан, поэтому читаем сначала его
+		if jsonValue, err = os.ReadFile(configPath); err != nil {
+			return err
+		}
+	}
+	return config.ParsePollerConfig(c, jsonValue)
 }
 
 func readCryptoKey(path string) (*rsa.PublicKey, error) {
