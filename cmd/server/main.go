@@ -34,16 +34,29 @@ func init() {
 	gin.SetMode(gin.ReleaseMode)
 }
 
-func parseConfig() (config.Keeper, error) {
-	cfg := config.Keeper{}
-	err := config.ParseKeeperConfig(&cfg)
-	return cfg, err
+func parseConfig(cfg *config.Keeper) error {
+	var (
+		err       error
+		jsonValue []byte
+	)
+	configPath := config.GetConfigPath()
+	if len(configPath) != 0 {
+		// файл с конфигом указан, поэтому читаем сначала его
+		if jsonValue, err = os.ReadFile(configPath); err != nil {
+			return err
+		}
+	}
+	return config.ParseKeeperConfig(cfg, jsonValue)
 }
 
 func main() {
 	l := logger.New()
-	cfg, err := parseConfig()
+	cfg := config.DefaultKeeperConfig
+	err := parseConfig(&cfg)
 	if err != nil {
+		if config.IsHelpWanted(err) {
+			exit(0)
+		}
 		l.Errorf("config: %s", err)
 		exit(1)
 	}
@@ -54,10 +67,10 @@ func main() {
 	l.Debugf("config: %+v", cfg)
 
 	showVersion()
-	Run(l, cfg)
+	run(l, cfg)
 }
 
-func Run(l *logger.Logger, cfg config.Keeper) {
+func run(l *logger.Logger, cfg config.Keeper) {
 	storeConfig := storage.Config{
 		DSN:           cfg.DatabaseDSN,
 		StoragePath:   cfg.FileStoragePath,

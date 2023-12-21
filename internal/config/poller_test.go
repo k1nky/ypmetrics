@@ -133,6 +133,14 @@ func TestParse(t *testing.T) {
 			wantErr:   true,
 		},
 		{
+			name:      "With json",
+			osargs:    []string{"server"},
+			env:       map[string]string{},
+			jsonValue: []byte(`{"addres":"127.0.0.1:9000}`),
+			want:      Poller{},
+			wantErr:   true,
+		},
+		{
 			name:      "With invalid evironment variable and argument value",
 			osargs:    []string{"server", "-a", "127.0.0.2/8000"},
 			env:       map[string]string{"ADDRESS": "127.0.0.1/8000"},

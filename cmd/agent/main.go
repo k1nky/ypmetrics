@@ -48,10 +48,10 @@ func main() {
 	}
 	l.Debugf("config: %+v", cfg)
 	showVersion()
-	Run(l, cfg)
+	run(l, cfg)
 }
 
-func Run(l *logger.Logger, cfg config.Poller) {
+func run(l *logger.Logger, cfg config.Poller) {
 	// для агента храним метрики в памяти
 	store := storage.NewMemStorage()
 	defer store.Close()
