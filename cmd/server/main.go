@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
 	"crypto/rsa"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -22,6 +27,12 @@ import (
 
 const (
 	DefaultProfilerPrefix = "/debug/pprof"
+)
+
+const (
+	DefaultReadTimeout  = 10 * time.Second
+	DefaultWriteTimeout = 10 * time.Second
+	DefaultCloseTimeout = 5 * time.Second
 )
 
 var (
@@ -67,10 +78,12 @@ func main() {
 	l.Debugf("config: %+v", cfg)
 
 	showVersion()
-	run(l, cfg)
+
+	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	run(ctx, l, cfg)
 }
 
-func run(l *logger.Logger, cfg config.Keeper) {
+func run(ctx context.Context, l *logger.Logger, cfg config.Keeper) {
 	storeConfig := storage.Config{
 		DSN:           cfg.DatabaseDSN,
 		StoragePath:   cfg.FileStoragePath,
@@ -85,11 +98,13 @@ func run(l *logger.Logger, cfg config.Keeper) {
 
 	uc := keeper.New(store, cfg, l)
 	h := handler.New(*uc)
+
 	decryptKey, err := readCryptoKey(cfg.CryptoKey)
 	if err != nil {
 		l.Errorf("config: %s", err)
 		exit(1)
 	}
+
 	router := newRouter(h, l, cfg.Key, decryptKey)
 	if cfg.EnableProfiling {
 		l.Infof("expose profiler on %s", DefaultProfilerPrefix)
@@ -97,9 +112,33 @@ func run(l *logger.Logger, cfg config.Keeper) {
 	}
 
 	l.Infof("starting on %s", cfg.Address)
-	if err := http.ListenAndServe(cfg.Address.String(), router); err != nil {
-		panic(err)
+	runHTTPServer(ctx, cfg.Address.String(), router, l)
+	<-ctx.Done()
+	time.Sleep(1 * time.Second)
+}
+
+func runHTTPServer(ctx context.Context, addr string, handler http.Handler, l *logger.Logger) {
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      handler,
+		WriteTimeout: DefaultWriteTimeout,
+		ReadTimeout:  DefaultReadTimeout,
 	}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil {
+			if !errors.Is(err, http.ErrServerClosed) {
+				l.Errorf("unexpected server closing: %v", err)
+			}
+		}
+	}()
+	// отслеживаем завершение программы
+	go func() {
+		<-ctx.Done()
+		l.Debugf("closing http server")
+		c, cancel := context.WithTimeout(context.Background(), DefaultCloseTimeout)
+		defer cancel()
+		srv.Shutdown(c)
+	}()
 }
 
 func newRouter(h handler.Handler, l *logger.Logger, sealKey string, decryptKey *rsa.PrivateKey) *gin.Engine {

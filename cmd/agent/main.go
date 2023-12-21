@@ -24,6 +24,7 @@ import (
 
 const (
 	DefaultProfilerAddress = "localhost:8099"
+	DefaultShutdownTimeout = 10 * time.Second
 )
 
 var (
@@ -48,10 +49,12 @@ func main() {
 	}
 	l.Debugf("config: %+v", cfg)
 	showVersion()
-	run(l, cfg)
+
+	ctx, _ := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	run(ctx, l, cfg)
 }
 
-func run(l *logger.Logger, cfg config.Poller) {
+func run(ctx context.Context, l *logger.Logger, cfg config.Poller) {
 	// для агента храним метрики в памяти
 	store := storage.NewMemStorage()
 	defer store.Close()
@@ -73,13 +76,17 @@ func run(l *logger.Logger, cfg config.Poller) {
 		&collector.Gops{},
 	)
 
-	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	p.Run(ctx)
+	done := p.Run(ctx)
 	if cfg.EnableProfiling {
 		exposeProfiler(ctx, l)
 	}
+	// ожидаем завершения программы по сигналу
 	<-ctx.Done()
-	time.Sleep(time.Second)
+	// ожидаем завершения отправки метрик или принудительно по таймауту
+	select {
+	case <-done:
+	case <-time.After(DefaultShutdownTimeout):
+	}
 }
 
 func exposeProfiler(ctx context.Context, l *logger.Logger) {
