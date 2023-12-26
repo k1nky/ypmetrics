@@ -37,7 +37,7 @@ func main() {
 	cfg := config.DefaultPollerConfig
 	if err := parseConfig(&cfg); err != nil {
 		if config.IsHelpWanted(err) {
-			exit(0)
+			return
 		}
 		l.Errorf("config: %s", err)
 		exit(1)
