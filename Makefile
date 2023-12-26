@@ -48,6 +48,10 @@ runlint:
 racetest:
 	go test -v -race ./...
 
+genkey:
+	openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits:2048
+	openssl rsa -pubout -in private_key.pem -out public_key.pem
+
 autotest: autotest1 autotest2 autotest3 autotest4 autotest5 autotest6 autotest7 autotest8 autotest9 autotest10 autotest11 autotest12 autotest13 autotest14
 
 autotest1: buildserver

@@ -34,8 +34,6 @@ const (
 const (
 	// воркеры сбора метрик
 	MaxPollWorkers = 2
-	// воркеры отправки метрик
-	MaxReportWorkers = 2
 )
 
 // New возвращает нового Poller для сбора метрик. По умолчанию в качестве хранилища используется MemStorage.
@@ -61,13 +59,14 @@ func (p *Poller) AddCollector(c ...Collector) {
 }
 
 // Run запускает Poller
-func (p Poller) Run(ctx context.Context) {
+func (p Poller) Run(ctx context.Context) <-chan struct{} {
 	// получаем метрики со сборщиков
 	metrics := p.poll(ctx, MaxPollWorkers)
 	// сохраняем их по мере поступления
 	p.storeWorker(ctx, metrics)
 	// отправляем метрик на сервер по таймеру
-	p.report(ctx, MaxReportWorkers)
+	done := p.report(ctx)
+	return done
 }
 
 // Создает и запускает maxWorkers воркеров для опроса сборщиков метрик.
@@ -151,13 +150,10 @@ func (p Poller) storeWorker(ctx context.Context, metrics <-chan metric.Metrics) 
 }
 
 // Создает и запускает maxWorkers воркеров для отправки метрик на сервер.
-func (p Poller) report(ctx context.Context, maxWorkers int) {
+func (p Poller) report(ctx context.Context) <-chan struct{} {
 	metrics := make(chan metric.Metrics, p.Config.RateLimit)
 
-	for i := 1; i <= maxWorkers; i++ {
-		// запускаем воркеры для отправки метрик
-		p.reportWorker(context.WithValue(ctx, keyWorkerID, i), metrics)
-	}
+	done := p.reportWorker(ctx, metrics)
 	go func() {
 		t := time.NewTicker(p.Config.ReportInterval())
 		defer t.Stop()
@@ -173,12 +169,13 @@ func (p Poller) report(ctx context.Context, maxWorkers int) {
 					p.logger.Errorf("report: %s", err)
 					continue
 				}
+				p.logger.Debugf("report: sending metrics")
 				if p.Config.RateLimit == NoLimitToReport {
 					// ограничения на отправку нет - отправляем все метрики одним большим запросов
 					metrics <- *snapshot
 					continue
 				}
-				// ограничение на количество запросов установлен
+				// ограничение на количество запросов установлено
 				// отправляем по одной метрике (иначе не совсем понятно ограничение на отправку)
 				for _, m := range snapshot.Counters {
 					metrics <- metric.Metrics{
@@ -193,24 +190,28 @@ func (p Poller) report(ctx context.Context, maxWorkers int) {
 			}
 		}
 	}()
+	return done
 }
 
-func (p Poller) reportWorker(ctx context.Context, metrics <-chan metric.Metrics) {
+func (p Poller) reportWorker(ctx context.Context, metrics <-chan metric.Metrics) (done chan struct{}) {
+	done = make(chan struct{})
 	go func() {
-		id := ctx.Value(keyWorkerID).(int)
+		defer close(done)
 		for {
 			select {
 			case <-ctx.Done():
-				p.logger.Debugf("report worker #%d: done", id)
+				p.logger.Debugf("report worker: done")
 				return
 			case m, ok := <-metrics:
 				if !ok {
+					p.logger.Errorf("report worker: metrics channel was closed")
 					return
 				}
 				if err := p.client.PushMetrics(m); err != nil {
-					p.logger.Errorf("report worker #%d: %s", id, err)
+					p.logger.Errorf("report worker: %s", err)
 				}
 			}
 		}
 	}()
+	return
 }

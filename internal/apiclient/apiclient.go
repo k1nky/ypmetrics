@@ -2,6 +2,7 @@
 package apiclient
 
 import (
+	"crypto/rsa"
 	"errors"
 	"fmt"
 	"net/http"
@@ -127,6 +128,15 @@ func (c *Client) PushMetrics(metrics metric.Metrics) (err error) {
 		m = append(m, protocol.Metrics{ID: g.Name, MType: GaugeType, Value: &g.Value})
 	}
 	return c.postData("updates/", "application/json", m)
+}
+
+// SetEncrypt задает публичный ключ для шифрования отправляемых данных.
+// В таком случае шифроваться будет тело запроса каждого POST запроса.
+func (c *Client) SetEncrypt(key *rsa.PublicKey) *Client {
+	if key != nil {
+		c.middlewares = append(c.middlewares, middleware.NewEncrypter(key).Use())
+	}
+	return c
 }
 
 // SetKey задает ключ подписи отправляемых данных, которым будут подписываться отправляемые данные.
