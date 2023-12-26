@@ -24,7 +24,6 @@ import (
 
 const (
 	DefaultProfilerAddress = "localhost:8099"
-	DefaultShutdownTimeout = 10 * time.Second
 )
 
 var (
@@ -139,7 +138,7 @@ func run(ctx context.Context, l *logger.Logger, cfg config.Poller) {
 	// ожидаем завершения отправки метрик или принудительно по таймауту
 	select {
 	case <-done:
-	case <-time.After(DefaultShutdownTimeout):
+	case <-time.After(cfg.ShutdownTimeout()):
 	}
 }
 
