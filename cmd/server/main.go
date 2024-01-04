@@ -1,13 +1,18 @@
 package main
 
 import (
+	"context"
 	"crypto/rsa"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -25,6 +30,12 @@ const (
 	DefaultProfilerPrefix = "/debug/pprof"
 )
 
+const (
+	DefaultReadTimeout  = 10 * time.Second
+	DefaultWriteTimeout = 10 * time.Second
+	DefaultCloseTimeout = 5 * time.Second
+)
+
 var (
 	buildVersion string = "N/A"
 	buildDate    string = "N/A"
@@ -33,21 +44,6 @@ var (
 
 func init() {
 	gin.SetMode(gin.ReleaseMode)
-}
-
-func parseConfig(cfg *config.Keeper) error {
-	var (
-		err       error
-		jsonValue []byte
-	)
-	configPath := config.GetConfigPath()
-	if len(configPath) != 0 {
-		// файл с конфигом указан, поэтому читаем сначала его
-		if jsonValue, err = os.ReadFile(configPath); err != nil {
-			return err
-		}
-	}
-	return config.ParseKeeperConfig(cfg, jsonValue)
 }
 
 func main() {
@@ -68,44 +64,29 @@ func main() {
 	l.Debugf("config: %+v", cfg)
 
 	showVersion()
-	run(l, cfg)
+
+	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	run(ctx, l, cfg)
 }
 
-func run(l *logger.Logger, cfg config.Keeper) {
-	storeConfig := storage.Config{
-		DSN:           cfg.DatabaseDSN,
-		StoragePath:   cfg.FileStoragePath,
-		StoreInterval: cfg.StorageInterval(),
-		Restore:       cfg.Restore,
-	}
-	store := storage.NewStorage(storeConfig, l, retrier.New())
-	if err := store.Open(storeConfig); err != nil {
-		l.Errorf("opening storage: %v", err)
-	}
-	defer store.Close()
+func exposeProfiler(r *gin.Engine) {
+	g := r.Group(DefaultProfilerPrefix)
+	g.GET("/", gin.WrapF(pprof.Index))
+	g.GET("/cmdline", gin.WrapF(pprof.Cmdline))
+	g.GET("/profile", gin.WrapF(pprof.Profile))
+	g.GET("/trace", gin.WrapF(pprof.Trace))
+	g.GET("/symbol", gin.WrapF(pprof.Symbol))
+	g.POST("/symbol", gin.WrapF(pprof.Symbol))
+	g.GET("/allocs", gin.WrapH(pprof.Handler("allocs")))
+	g.GET("/block", gin.WrapH(pprof.Handler("block")))
+	g.GET("/goroutine", gin.WrapH(pprof.Handler("goroutine")))
+	g.GET("/heap", gin.WrapH(pprof.Handler("heap")))
+	g.GET("/mutex", gin.WrapH(pprof.Handler("mutex")))
+	g.GET("/threadcreate", gin.WrapH(pprof.Handler("threadcreate")))
+}
 
-	uc := keeper.New(store, cfg, l)
-	h := handler.New(*uc)
-	decryptKey, err := readCryptoKey(cfg.CryptoKey)
-	if err != nil {
-		l.Errorf("config: %s", err)
-		exit(1)
-	}
-	trustedSubnet, err := cfg.TrustedSubnet.ToIPNet()
-	if err != nil {
-		l.Errorf("config: %s", err)
-		exit(1)
-	}
-	router := newRouter(h, l, cfg.Key, decryptKey, trustedSubnet)
-	if cfg.EnableProfiling {
-		l.Infof("expose profiler on %s", DefaultProfilerPrefix)
-		exposeProfiler(router)
-	}
-
-	l.Infof("starting on %s", cfg.Address)
-	if err := http.ListenAndServe(cfg.Address.String(), router); err != nil {
-		panic(err)
-	}
+func exit(rc int) {
+	os.Exit(rc)
 }
 
 func newRouter(h handler.Handler, l *logger.Logger, sealKey string, decryptKey *rsa.PrivateKey, trustedSubnet *net.IPNet) *gin.Engine {
@@ -144,24 +125,82 @@ func newRouter(h handler.Handler, l *logger.Logger, sealKey string, decryptKey *
 	return router
 }
 
-func exposeProfiler(r *gin.Engine) {
-	g := r.Group(DefaultProfilerPrefix)
-	g.GET("/", gin.WrapF(pprof.Index))
-	g.GET("/cmdline", gin.WrapF(pprof.Cmdline))
-	g.GET("/profile", gin.WrapF(pprof.Profile))
-	g.GET("/trace", gin.WrapF(pprof.Trace))
-	g.GET("/symbol", gin.WrapF(pprof.Symbol))
-	g.POST("/symbol", gin.WrapF(pprof.Symbol))
-	g.GET("/allocs", gin.WrapH(pprof.Handler("allocs")))
-	g.GET("/block", gin.WrapH(pprof.Handler("block")))
-	g.GET("/goroutine", gin.WrapH(pprof.Handler("goroutine")))
-	g.GET("/heap", gin.WrapH(pprof.Handler("heap")))
-	g.GET("/mutex", gin.WrapH(pprof.Handler("mutex")))
-	g.GET("/threadcreate", gin.WrapH(pprof.Handler("threadcreate")))
+func parseConfig(cfg *config.Keeper) error {
+	var (
+		err       error
+		jsonValue []byte
+	)
+	configPath := config.GetConfigPath()
+	if len(configPath) != 0 {
+		// файл с конфигом указан, поэтому читаем сначала его
+		if jsonValue, err = os.ReadFile(configPath); err != nil {
+			return err
+		}
+	}
+	return config.ParseKeeperConfig(cfg, jsonValue)
 }
 
-func exit(rc int) {
-	os.Exit(rc)
+func run(ctx context.Context, l *logger.Logger, cfg config.Keeper) {
+	storeConfig := storage.Config{
+		DSN:           cfg.DatabaseDSN,
+		StoragePath:   cfg.FileStoragePath,
+		StoreInterval: cfg.StorageInterval(),
+		Restore:       cfg.Restore,
+	}
+	store := storage.NewStorage(storeConfig, l, retrier.New())
+	if err := store.Open(storeConfig); err != nil {
+		l.Errorf("opening storage: %v", err)
+	}
+	defer store.Close()
+
+	uc := keeper.New(store, cfg, l)
+	h := handler.New(*uc)
+
+	decryptKey, err := readCryptoKey(cfg.CryptoKey)
+	if err != nil {
+		l.Errorf("config: %s", err)
+		exit(1)
+	}
+	trustedSubnet, err := cfg.TrustedSubnet.ToIPNet()
+	if err != nil {
+		l.Errorf("config: %s", err)
+		exit(1)
+	}
+	router := newRouter(h, l, cfg.Key, decryptKey, trustedSubnet)
+
+	if cfg.EnableProfiling {
+		l.Infof("expose profiler on %s", DefaultProfilerPrefix)
+		exposeProfiler(router)
+	}
+
+	l.Infof("starting on %s", cfg.Address)
+	runHTTPServer(ctx, cfg.Address.String(), router, l)
+	<-ctx.Done()
+	time.Sleep(1 * time.Second)
+}
+
+func runHTTPServer(ctx context.Context, addr string, handler http.Handler, l *logger.Logger) {
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      handler,
+		WriteTimeout: DefaultWriteTimeout,
+		ReadTimeout:  DefaultReadTimeout,
+	}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil {
+			if !errors.Is(err, http.ErrServerClosed) {
+				l.Errorf("unexpected server closing: %v", err)
+			}
+		}
+	}()
+	// отслеживаем завершение программы
+	go func() {
+		<-ctx.Done()
+		l.Debugf("closing http server")
+		c, cancel := context.WithTimeout(context.Background(), DefaultCloseTimeout)
+		defer cancel()
+		srv.Shutdown(c)
+	}()
 }
 
 func readCryptoKey(path string) (*rsa.PrivateKey, error) {

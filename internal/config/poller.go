@@ -14,6 +14,7 @@ const (
 	DefaultPollerPollIntervalInSec   = 2
 	DefaultPollerReportIntervalInSec = 10
 	DefaultPollerRateLimit           = 0
+	DefaultPollerShutdownTimeout     = 10
 	DefaultPollerLogLevel            = "info"
 	DefaultPollerAddress             = "localhost:8080"
 )
@@ -36,20 +37,23 @@ type Poller struct {
 	Key string `env:"KEY" json:"key"`
 	// RateLimit ограничение передаваемых метрик за раз. По умолчанию ограничения нет.
 	RateLimit uint `env:"RATE_LIMIT" json:"rate_limit"`
+	// Таймаут отправки метрик при завершении программы
+	ShutdownTimeoutInSec uint `env:"SHUTDOWN_TIMEOUT" json:"shutdown_timeout"`
 	// EnableProfiling доступ к профилировщику. По умолчанию недоступен.
 	EnableProfiling bool `env:"ENABLE_PPROF" json:"enable_profiling"`
 }
 
 // DefaultPollerConfig конфиг по умолчанию.
 var DefaultPollerConfig = Poller{
-	Address:             DefaultPollerAddress,
-	CryptoKey:           "",
-	ReportIntervalInSec: DefaultPollerReportIntervalInSec,
-	PollIntervalInSec:   DefaultPollerPollIntervalInSec,
-	LogLevel:            DefaultPollerLogLevel,
-	Key:                 "",
-	RateLimit:           DefaultPollerRateLimit,
-	EnableProfiling:     false,
+	Address:              DefaultPollerAddress,
+	CryptoKey:            "",
+	ReportIntervalInSec:  DefaultPollerReportIntervalInSec,
+	PollIntervalInSec:    DefaultPollerPollIntervalInSec,
+	LogLevel:             DefaultPollerLogLevel,
+	Key:                  "",
+	RateLimit:            DefaultPollerRateLimit,
+	EnableProfiling:      false,
+	ShutdownTimeoutInSec: DefaultPollerShutdownTimeout,
 }
 
 // ParsePollerConfig возвращает конфиг Poller'a. Опции разбираются из аргументов командной строки
@@ -77,6 +81,10 @@ func (c Poller) PollInterval() time.Duration {
 	return time.Duration(c.PollIntervalInSec) * time.Second
 }
 
+func (c Poller) ShutdownTimeout() time.Duration {
+	return time.Duration(c.ShutdownTimeoutInSec) * time.Second
+}
+
 func parsePollerConfigFromJSON(c *Poller, jsonValue []byte) error {
 	if len(jsonValue) == 0 {
 		return nil
@@ -95,6 +103,7 @@ func parsePollerConfigFromCmd(c *Poller) error {
 	logLevel := cmd.StringP("log-level", "", c.LogLevel, "уровень логирования")
 	key := cmd.StringP("key", "k", c.Key, "ключ хеша")
 	rateLimit := cmd.UintP("rate-limit", "l", c.RateLimit, "количество одновременно исходящих запросов на сервер")
+	shutdownTimeout := cmd.UintP("shutdown-timeout", "", c.ShutdownTimeoutInSec, "таймаут завершения программы")
 	enableProfiling := cmd.BoolP("enable-pprof", "", c.EnableProfiling, "включить профилироовщик")
 	cmd.StringP("config", "c", "", "путь к конфигурационному файлу")
 
@@ -103,14 +112,15 @@ func parsePollerConfigFromCmd(c *Poller) error {
 	}
 
 	*c = Poller{
-		Address:             address,
-		CryptoKey:           *cryptoKey,
-		ReportIntervalInSec: *reportInterval,
-		PollIntervalInSec:   *pollInterval,
-		LogLevel:            *logLevel,
-		Key:                 *key,
-		RateLimit:           *rateLimit,
-		EnableProfiling:     *enableProfiling,
+		Address:              address,
+		CryptoKey:            *cryptoKey,
+		ReportIntervalInSec:  *reportInterval,
+		PollIntervalInSec:    *pollInterval,
+		LogLevel:             *logLevel,
+		Key:                  *key,
+		RateLimit:            *rateLimit,
+		ShutdownTimeoutInSec: *shutdownTimeout,
+		EnableProfiling:      *enableProfiling,
 	}
 	return nil
 }
