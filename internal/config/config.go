@@ -14,6 +14,8 @@ import (
 // Данный тип реализует интерфейс pflag.Value.
 type NetAddress string
 
+// Subnet строка представляющся CIDR подсеть.
+// Данный тип реализует интерфейс pflag.Value.
 type Subnet string
 
 // Возвращает строковое представление сетевого адреса.
@@ -21,10 +23,12 @@ func (a NetAddress) String() string {
 	return string(a)
 }
 
+// Возвращает строковое представление сетевого адреса.
 func (s Subnet) String() string {
 	return string(s)
 }
 
+// Возвращает net.IPNet из строкового представления сети.
 func (s Subnet) ToIPNet() (*net.IPNet, error) {
 	if len(s) == 0 {
 		return nil, nil
@@ -49,6 +53,7 @@ func (a *NetAddress) Set(s string) error {
 	return nil
 }
 
+// Задает значение для адреса сети. Возвращает ошибку в случае неверного формата.
 func (s *Subnet) Set(value string) error {
 	if len(value) != 0 {
 		_, _, err := net.ParseCIDR(value)

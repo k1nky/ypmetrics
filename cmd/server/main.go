@@ -94,6 +94,7 @@ func newRouter(h handler.Handler, l *logger.Logger, sealKey string, decryptKey *
 	// логируем запрос
 	router.Use(middleware.Logger(l))
 	if trustedSubnet != nil {
+		// проверяем адрес источника запроса
 		router.Use(middleware.XRealIP(*trustedSubnet))
 	}
 	if len(sealKey) > 0 {
