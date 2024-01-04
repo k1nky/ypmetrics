@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rsa"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -90,7 +91,12 @@ func run(l *logger.Logger, cfg config.Keeper) {
 		l.Errorf("config: %s", err)
 		exit(1)
 	}
-	router := newRouter(h, l, cfg.Key, decryptKey)
+	trustedSubnet, err := cfg.TrustedSubnet.ToIPNet()
+	if err != nil {
+		l.Errorf("config: %s", err)
+		exit(1)
+	}
+	router := newRouter(h, l, cfg.Key, decryptKey, trustedSubnet)
 	if cfg.EnableProfiling {
 		l.Infof("expose profiler on %s", DefaultProfilerPrefix)
 		exposeProfiler(router)
@@ -102,10 +108,13 @@ func run(l *logger.Logger, cfg config.Keeper) {
 	}
 }
 
-func newRouter(h handler.Handler, l *logger.Logger, sealKey string, decryptKey *rsa.PrivateKey) *gin.Engine {
+func newRouter(h handler.Handler, l *logger.Logger, sealKey string, decryptKey *rsa.PrivateKey, trustedSubnet *net.IPNet) *gin.Engine {
 	router := gin.New()
 	// логируем запрос
 	router.Use(middleware.Logger(l))
+	if trustedSubnet != nil {
+		router.Use(middleware.XRealIP(*trustedSubnet))
+	}
 	if len(sealKey) > 0 {
 		// если указан ключ, то проверяем подпись полученных данных
 		router.Use(middleware.NewSeal(sealKey).Use())

@@ -14,9 +14,23 @@ import (
 // Данный тип реализует интерфейс pflag.Value.
 type NetAddress string
 
+type Subnet string
+
 // Возвращает строковое представление сетевого адреса.
 func (a NetAddress) String() string {
 	return string(a)
+}
+
+func (s Subnet) String() string {
+	return string(s)
+}
+
+func (s Subnet) ToIPNet() (*net.IPNet, error) {
+	if len(s) == 0 {
+		return nil, nil
+	}
+	_, network, err := net.ParseCIDR(s.String())
+	return network, err
 }
 
 // Задает значение для сетевого адреса из строки.
@@ -35,7 +49,22 @@ func (a *NetAddress) Set(s string) error {
 	return nil
 }
 
+func (s *Subnet) Set(value string) error {
+	if len(value) != 0 {
+		_, _, err := net.ParseCIDR(value)
+		if err != nil {
+			return err
+		}
+	}
+	*s = Subnet(value)
+	return nil
+}
+
 func (a *NetAddress) Type() string {
+	return "string"
+}
+
+func (s *Subnet) Type() string {
 	return "string"
 }
 
