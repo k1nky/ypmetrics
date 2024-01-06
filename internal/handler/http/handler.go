@@ -1,5 +1,5 @@
-// Пакет handler реализует обработчик HTTP запросов к серверу сбора метрик
-package handler
+// Пакет http реализует обработчик HTTP запросов к серверу сбора метрик
+package http
 
 import (
 	"context"
@@ -18,11 +18,11 @@ import (
 
 // Обработчик http-запросов к серверу метрик
 type Handler struct {
-	keeper keeper.Keeper
+	keeper *keeper.Keeper
 }
 
 // New возвращает новый обработчик http-запросов к серверу метрик
-func New(keeper keeper.Keeper) Handler {
+func New(keeper *keeper.Keeper) Handler {
 	return Handler{
 		keeper: keeper,
 	}

@@ -15,12 +15,16 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
 
 	"github.com/k1nky/ypmetrics/internal/config"
 	"github.com/k1nky/ypmetrics/internal/crypto"
-	"github.com/k1nky/ypmetrics/internal/handler"
-	"github.com/k1nky/ypmetrics/internal/handler/middleware"
+	grpchandler "github.com/k1nky/ypmetrics/internal/handler/grpc"
+	grpcmw "github.com/k1nky/ypmetrics/internal/handler/grpc/middleware"
+	httphandler "github.com/k1nky/ypmetrics/internal/handler/http"
+	httpmw "github.com/k1nky/ypmetrics/internal/handler/http/middleware"
 	"github.com/k1nky/ypmetrics/internal/logger"
+	pb "github.com/k1nky/ypmetrics/internal/proto"
 	"github.com/k1nky/ypmetrics/internal/retrier"
 	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/k1nky/ypmetrics/internal/usecases/keeper"
@@ -89,41 +93,56 @@ func exit(rc int) {
 	os.Exit(rc)
 }
 
-func newRouter(h handler.Handler, l *logger.Logger, sealKey string, decryptKey *rsa.PrivateKey, trustedSubnet *net.IPNet) *gin.Engine {
+func newRouter(h httphandler.Handler, l *logger.Logger, sealKey string, decryptKey *rsa.PrivateKey, trustedSubnet *net.IPNet) *gin.Engine {
 	router := gin.New()
 	// логируем запрос
-	router.Use(middleware.Logger(l))
+	router.Use(httpmw.Logger(l))
 	if trustedSubnet != nil {
 		// проверяем адрес источника запроса
-		router.Use(middleware.XRealIP(*trustedSubnet))
+		router.Use(httpmw.XRealIP(*trustedSubnet))
 	}
 	if len(sealKey) > 0 {
 		// если указан ключ, то проверяем подпись полученных данных
-		router.Use(middleware.NewSeal(sealKey).Use())
+		router.Use(httpmw.NewSeal(sealKey).Use())
 	}
 	if decryptKey != nil {
 		// указан ключ шифрования, то расшифровываем тело запроса
-		router.Use(middleware.NewDecrypter(decryptKey).Use())
+		router.Use(httpmw.NewDecrypter(decryptKey).Use())
 	}
 	// при необходимости раcпаковываем/запаковываем данные
-	router.Use(middleware.NewGzip([]string{"application/json", "text/html"}).Use())
+	router.Use(httpmw.NewGzip([]string{"application/json", "text/html"}).Use())
 
 	router.GET("/", h.AllMetrics())
 	router.GET("/ping", h.Ping())
-	router.POST("/updates/", middleware.RequireContentType("application/json"), h.UpdatesJSON())
+	router.POST("/updates/", httpmw.RequireContentType("application/json"), h.UpdatesJSON())
 
 	valueRoutes := router.Group("/value")
-	valueRoutes.POST("/", middleware.RequireContentType("application/json"), h.ValueJSON())
+	valueRoutes.POST("/", httpmw.RequireContentType("application/json"), h.ValueJSON())
 	valueRoutes.GET("/:type/:name", h.Value())
 
 	updateRoutes := router.Group("/update")
-	updateRoutes.POST("/", middleware.RequireContentType("application/json"), h.UpdateJSON())
+	updateRoutes.POST("/", httpmw.RequireContentType("application/json"), h.UpdateJSON())
 	updateRoutes.POST("/:type/", func(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 	})
 	updateRoutes.POST("/:type/:name/:value", h.Update())
 
 	return router
+}
+
+func newRPCServer(h *grpchandler.Handler, sealKey string, trustedSubnet *net.IPNet, l *logger.Logger) *grpc.Server {
+	unaryInterceptors := []grpc.UnaryServerInterceptor{grpcmw.LoggerUnaryInterceptor(l)}
+	streamInterceptors := []grpc.StreamServerInterceptor{grpcmw.LoggerStreamInterceptor(l)}
+	if trustedSubnet != nil {
+		unaryInterceptors = append(unaryInterceptors, grpcmw.XRealIPUnaryInterceptor(*trustedSubnet))
+		streamInterceptors = append(streamInterceptors, grpcmw.XRealIPStreamInterceptor(*trustedSubnet))
+	}
+	if len(sealKey) > 0 {
+		unaryInterceptors = append(unaryInterceptors, grpcmw.SealUnaryInterceptor(sealKey))
+	}
+	srv := grpc.NewServer(grpc.ChainUnaryInterceptor(unaryInterceptors...), grpc.ChainStreamInterceptor(streamInterceptors...))
+	pb.RegisterMetricsServer(srv, h)
+	return srv
 }
 
 func parseConfig(cfg *config.Keeper) error {
@@ -155,7 +174,8 @@ func run(ctx context.Context, l *logger.Logger, cfg config.Keeper) {
 	defer store.Close()
 
 	uc := keeper.New(store, cfg, l)
-	h := handler.New(*uc)
+	h := httphandler.New(uc)
+	gh := grpchandler.New(uc)
 
 	decryptKey, err := readCryptoKey(cfg.CryptoKey)
 	if err != nil {
@@ -174,16 +194,41 @@ func run(ctx context.Context, l *logger.Logger, cfg config.Keeper) {
 		exposeProfiler(router)
 	}
 
-	l.Infof("starting on %s", cfg.Address)
+	l.Infof("starting http on %s", cfg.Address)
 	runHTTPServer(ctx, cfg.Address.String(), router, l)
+	if len(cfg.GRPCAddress.String()) != 0 {
+		l.Infof("starting gRPC on %s", cfg.GRPCAddress)
+		srv := newRPCServer(gh, cfg.Key, trustedSubnet, l)
+		runRPCServer(ctx, cfg.GRPCAddress.String(), srv, l)
+	}
 	<-ctx.Done()
 	time.Sleep(1 * time.Second)
 }
 
-func runHTTPServer(ctx context.Context, addr string, handler http.Handler, l *logger.Logger) {
+func runRPCServer(ctx context.Context, addr string, srv *grpc.Server, l *logger.Logger) {
+	listen, err := net.Listen("tcp", addr)
+	if err != nil {
+		l.Errorf("gRPC server failed to start %v", err)
+		return
+	}
+	go func() {
+		if err := srv.Serve(listen); err != nil {
+			if !errors.Is(err, grpc.ErrServerStopped) {
+				l.Errorf("unexpected server closing: %v", err)
+			}
+		}
+	}()
+	go func() {
+		<-ctx.Done()
+		l.Debugf("closing gRPC server")
+		srv.GracefulStop()
+	}()
+}
+
+func runHTTPServer(ctx context.Context, addr string, h http.Handler, l *logger.Logger) {
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      handler,
+		Handler:      h,
 		WriteTimeout: DefaultWriteTimeout,
 		ReadTimeout:  DefaultReadTimeout,
 	}

@@ -1,4 +1,4 @@
-package handler
+package http
 
 import (
 	"bytes"
@@ -122,7 +122,7 @@ func TestUpdate(t *testing.T) {
 	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any(), gomock.Any())
 
 	keeper := keeper.New(store, config.Keeper{}, &logger.Blackhole{})
-	h := New(*keeper)
+	h := New(keeper)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
@@ -225,7 +225,7 @@ func TestUpdateJSON(t *testing.T) {
 	store.EXPECT().UpdateGauge(gomock.Any(), gomock.Any(), gomock.Any())
 
 	keeper := keeper.New(store, config.Keeper{}, &logger.Blackhole{})
-	h := New(*keeper)
+	h := New(keeper)
 	gin.SetMode(gin.TestMode)
 
 	for _, tt := range tests {
@@ -325,7 +325,7 @@ func TestValue(t *testing.T) {
 				store.EXPECT().GetGauge(gomock.Any(), "g100").Return(nil)
 			}
 			keeper := keeper.New(store, config.Keeper{}, &logger.Blackhole{})
-			h := New(*keeper)
+			h := New(keeper)
 
 			w := httptest.NewRecorder()
 			c, r := gin.CreateTestContext(w)
@@ -417,7 +417,7 @@ func TestValueJSON(t *testing.T) {
 				store.EXPECT().GetGauge(gomock.Any(), "g100").Return(nil)
 			}
 			keeper := keeper.New(store, config.Keeper{}, &logger.Blackhole{})
-			h := New(*keeper)
+			h := New(keeper)
 
 			w := httptest.NewRecorder()
 			c, r := gin.CreateTestContext(w)
@@ -486,7 +486,7 @@ func TestAllMetrics(t *testing.T) {
 			c, r := gin.CreateTestContext(w)
 			store.EXPECT().Snapshot(gomock.Any(), gomock.Any()).SetArg(1, tt.ms)
 			keeper := keeper.New(store, config.Keeper{}, &logger.Blackhole{})
-			h := New(*keeper)
+			h := New(keeper)
 			r.GET("/", h.AllMetrics())
 			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 			r.ServeHTTP(w, c.Request)
@@ -528,7 +528,7 @@ func TestUpdatesJSON(t *testing.T) {
 	store.EXPECT().UpdateMetrics(gomock.Any(), gomock.Any()).Return(nil)
 
 	keeper := keeper.New(store, config.Keeper{}, &logger.Blackhole{})
-	h := New(*keeper)
+	h := New(keeper)
 	gin.SetMode(gin.TestMode)
 
 	for _, tt := range tests {
