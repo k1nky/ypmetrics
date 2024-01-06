@@ -13,13 +13,14 @@ import (
 // Значения по умолчанию
 const (
 	DefaultKeeperStoreIntervalInSec = 300
-	DefaultKeeperAddress            = "localhost:8080"
+	DefaultKeeperAddress            = ":8080"
+	DefaultgRPCAddress              = ""
 	DefaultKeeperLogLevel           = "info"
 )
 
 // Keeper конфигурация сервера сбора метрик.
 type Keeper struct {
-	// Address адрес и порт, который будет слушать сервер. По умолчанию localhost:8080.
+	// Address адрес и порт, который будет слушать http-сервер. По умолчанию localhost:8080.
 	// Допустимый формат [хост]:<порт>.
 	Address NetAddress `env:"ADDRESS" json:"address"`
 	// CryptoKey Путь до файла с публичным ключом (для зашифровки передаваемых агентом данных).
@@ -30,6 +31,9 @@ type Keeper struct {
 	EnableProfiling bool `env:"ENABLE_PPROF" json:"enable_pprof"`
 	// FileStoragePath путь до файла, в котором будут сохранятся метрики.
 	FileStoragePath string `env:"FILE_STORAGE_PATH" json:"store_file"`
+	// Address адрес и порт, который будет слушать grpc-сервер. По умолчанию localhost:8081.
+	// Допустимый формат [хост]:<порт>.
+	GRPCAddress NetAddress `env:"GRPC_ADDRESS" json:"grpc_address"`
 	// Key секрет для формирования и проверки подписи данных.
 	Key string `env:"KEY" json:"key"`
 	// LogLevel уровень логирования. По умолчанию info.
@@ -47,14 +51,15 @@ type Keeper struct {
 var DefaultKeeperConfig = Keeper{
 	Address:            DefaultKeeperAddress,
 	CryptoKey:          "",
-	StoreIntervalInSec: DefaultKeeperStoreIntervalInSec,
-	FileStoragePath:    "",
-	Restore:            true,
 	DatabaseDSN:        "",
-	LogLevel:           DefaultKeeperLogLevel,
-	Key:                "",
 	EnableProfiling:    false,
+	FileStoragePath:    "",
+	GRPCAddress:        DefaultgRPCAddress,
+	Restore:            true,
+	StoreIntervalInSec: DefaultKeeperStoreIntervalInSec,
 	TrustedSubnet:      "",
+	Key:                "",
+	LogLevel:           DefaultKeeperLogLevel,
 }
 
 // ParseKeeperConfig разбирает настройки Keeper'a из файла конфигурации и/или аргументов командной строки
@@ -90,6 +95,11 @@ func parseKeeperConfigFromJSON(c *Keeper, jsonValue []byte) error {
 			return err
 		}
 	}
+	if len(c.GRPCAddress) != 0 {
+		if err := c.GRPCAddress.Set(c.GRPCAddress.String()); err != nil {
+			return err
+		}
+	}
 	if len(c.TrustedSubnet) != 0 {
 		if err := c.TrustedSubnet.Set(c.TrustedSubnet.String()); err != nil {
 			return err
@@ -102,18 +112,20 @@ func parseKeeperConfigFromCmd(c *Keeper) error {
 	cmd := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 
 	address := c.Address
-	cmd.VarP(&address, "address", "a", "адрес и порт сервера, формат: [<адрес>]:<порт>")
+	cmd.VarP(&address, "address", "a", "адрес и порт http-сервера, формат: [<адрес>]:<порт>")
 	cryproKey := cmd.StringP("crypto-key", "", c.CryptoKey, "путь до файла с публичным ключом")
-	storeInterval := cmd.UintP("store-interval", "i", c.StoreIntervalInSec, "интервал времени в секундах, по истечении которого текущие показания сервера сохраняются на диск (по умолчанию 300 секунд, значение 0 делает запись синхронной).")
-	storagePath := cmd.StringP("storage-path", "f", c.FileStoragePath, "полное имя файла, куда сохраняются текущие значения")
+	databaseDSN := cmd.StringP("database-dsn", "d", c.DatabaseDSN, "адрес подключения к БД")
+	enableProfiling := cmd.BoolP("enable-pprof", "", c.EnableProfiling, "включить профилировщик")
+	grpcAddress := c.GRPCAddress
+	cmd.VarP(&grpcAddress, "grpc-address", "", "адрес и порт grpc-сервера, формат: [<адрес>]:<порт>")
+	key := cmd.StringP("key", "k", c.Key, "ключ хеширования")
+	logLevel := cmd.StringP("log-level", "", c.LogLevel, "уровень логирования")
 	// для аргумента --restore запрашиваем сначала значение как строку, а потом уже конверитруем в bool
 	// это связано с тем, что формат передачи bool аргументов отличается от требуемого
 	// https://github.com/spf13/pflag/issues/288
 	restore := cmd.StringP("restore", "r", strconv.FormatBool(c.Restore), "загружать или нет ранее сохранённые значения из указанного файла при старте сервера")
-	databaseDSN := cmd.StringP("database-dsn", "d", c.DatabaseDSN, "адрес подключения к БД")
-	logLevel := cmd.StringP("log-level", "", c.LogLevel, "уровень логирования")
-	key := cmd.StringP("key", "k", c.Key, "ключ хеширования")
-	enableProfiling := cmd.BoolP("enable-pprof", "", c.EnableProfiling, "включить профилировщик")
+	storeInterval := cmd.UintP("store-interval", "i", c.StoreIntervalInSec, "интервал времени в секундах, по истечении которого текущие показания сервера сохраняются на диск (по умолчанию 300 секунд, значение 0 делает запись синхронной).")
+	storagePath := cmd.StringP("storage-path", "f", c.FileStoragePath, "полное имя файла, куда сохраняются текущие значения")
 	trustedSubnet := c.TrustedSubnet
 	cmd.VarP(&trustedSubnet, "trusted-subnet", "t", "")
 
@@ -128,13 +140,14 @@ func parseKeeperConfigFromCmd(c *Keeper) error {
 	*c = Keeper{
 		Address:            address,
 		CryptoKey:          *cryproKey,
-		StoreIntervalInSec: *storeInterval,
-		FileStoragePath:    *storagePath,
-		Restore:            restoreValue,
 		DatabaseDSN:        *databaseDSN,
-		LogLevel:           *logLevel,
-		Key:                *key,
 		EnableProfiling:    *enableProfiling,
+		FileStoragePath:    *storagePath,
+		GRPCAddress:        grpcAddress,
+		Key:                *key,
+		LogLevel:           *logLevel,
+		Restore:            restoreValue,
+		StoreIntervalInSec: *storeInterval,
 		TrustedSubnet:      trustedSubnet,
 	}
 	return nil
@@ -146,6 +159,11 @@ func parseKeeperConfigFromEnv(c *Keeper) error {
 	}
 	if len(c.Address) != 0 {
 		if err := c.Address.Set(c.Address.String()); err != nil {
+			return err
+		}
+	}
+	if len(c.GRPCAddress) != 0 {
+		if err := c.GRPCAddress.Set(c.GRPCAddress.String()); err != nil {
 			return err
 		}
 	}
