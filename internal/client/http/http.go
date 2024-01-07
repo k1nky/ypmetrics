@@ -1,11 +1,10 @@
-// Пакет apiclient реализует клиент для работы с сервером сбора метрик.
-package apiclient
+// Пакет http реализует http клиент для работы с сервером сбора метрик.
+package http
 
 import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -13,7 +12,9 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
-	"github.com/k1nky/ypmetrics/internal/apiclient/middleware"
+	"github.com/k1nky/ypmetrics/internal/client/http/middleware"
+	"github.com/k1nky/ypmetrics/internal/client/logger"
+	clientnet "github.com/k1nky/ypmetrics/internal/client/net"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/protocol"
 	"github.com/k1nky/ypmetrics/internal/retrier"
@@ -35,12 +36,6 @@ var (
 	ErrUnexpectedResponse = errors.New("unexpected response")
 )
 
-type clientLogger interface {
-	Errorf(string, ...interface{})
-	Debugf(string, ...interface{})
-	Warnf(string, ...interface{})
-}
-
 // Client http-клиент для сервера сбора метрик. Клиент может повторять запросы, которые не удалось доставить.
 type Client struct {
 	// EndpointURL URL сервера сбора метрик в формате <протокол>://<хост>[:порт].
@@ -58,7 +53,7 @@ type Client struct {
 //			Debugf(string, ...interface{})
 //			Warnf(string, ...interface{})
 //	}
-func New(url string, l clientLogger) *Client {
+func New(url string, l logger.Logger) *Client {
 	if !strings.HasPrefix(url, "http") {
 		url = "http://" + url
 	}
@@ -78,6 +73,10 @@ func New(url string, l clientLogger) *Client {
 	//	Недостаток в таком подходе - необходимость перечитывать тело запроса в каждой middleware, которая использует тело для своих целей.
 	cli.httpclient.SetPreRequestHook(cli.callMiddlewares)
 	return cli
+}
+
+func (c *Client) Close() error {
+	return nil
 }
 
 // PushMetric отправляет метрику типа typ с именем name и значением value на сервер.
@@ -166,7 +165,7 @@ func (c *Client) callMiddlewares(cli *resty.Client, r *http.Request) error {
 
 // newRequest это shortcut для создания нового запроса.
 func (c *Client) newRequest() (*resty.Request, error) {
-	ip, err := retriveHostAddress()
+	ip, err := clientnet.RetriveClientAddress()
 	return c.httpclient.R().SetHeader("accept-encoding", "gzip").SetHeader("x-real-ip", ip.String()), err
 }
 
@@ -220,29 +219,4 @@ func (c *Client) shouldRetry(err error) bool {
 		}
 	}
 	return true
-}
-
-func retriveHostAddress() (net.IP, error) {
-	ifs, err := net.Interfaces()
-	if err != nil {
-		return nil, err
-	}
-	for _, i := range ifs {
-		addrs, err := i.Addrs()
-		if err != nil {
-			return nil, err
-		}
-		for _, a := range addrs {
-			ipnet, ok := a.(*net.IPNet)
-			if !ok {
-				continue
-			}
-			ipv4 := ipnet.IP.To4()
-			if ipv4 == nil || ipv4[0] == 127 {
-				continue
-			}
-			return ipv4, nil
-		}
-	}
-	return nil, fmt.Errorf("could not retrive host address")
 }

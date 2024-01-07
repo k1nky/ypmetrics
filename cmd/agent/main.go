@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rsa"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,10 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/k1nky/ypmetrics/internal/apiclient"
+	"github.com/k1nky/ypmetrics/internal/client"
 	"github.com/k1nky/ypmetrics/internal/collector"
 	"github.com/k1nky/ypmetrics/internal/config"
-	"github.com/k1nky/ypmetrics/internal/crypto"
 	"github.com/k1nky/ypmetrics/internal/logger"
 	"github.com/k1nky/ypmetrics/internal/storage"
 	"github.com/k1nky/ypmetrics/internal/usecases/poller"
@@ -94,32 +92,23 @@ func parseConfig(c *config.Poller) error {
 	return config.ParsePollerConfig(c, jsonValue)
 }
 
-func readCryptoKey(path string) (*rsa.PublicKey, error) {
-	if len(path) == 0 {
-		return nil, nil
-	}
-	f, err := os.Open(path)
-	defer func() { _ = f.Close() }()
-	if err != nil {
-		return nil, err
-	}
-	key, err := crypto.ReadPublicKey(f)
-	return key, err
-}
-
 func run(ctx context.Context, l *logger.Logger, cfg config.Poller) {
 	// для агента храним метрики в памяти
 	store := storage.NewMemStorage()
 	defer store.Close()
 
-	client := apiclient.New(string(cfg.Address), l)
-	key, err := readCryptoKey(cfg.CryptoKey)
+	client, err := client.New(ctx, client.Config{
+		CryptoKey:        cfg.CryptoKey,
+		GRPCAddress:      cfg.GRPCAddress.String(),
+		GRPCPushToStream: cfg.GRPCStream,
+		HTTPAddress:      cfg.Address.String(),
+		Key:              cfg.Key,
+	}, l)
 	if err != nil {
-		l.Errorf("config: %s", err)
+		l.Errorf("create metric client: %s", err)
 		exit(1)
 	}
-	// сжимаем данные -> шифруем -> подписываем
-	client.SetGzip().SetEncrypt(key).SetKey(cfg.Key)
+	defer client.Close()
 
 	p := poller.New(cfg, store, l, client)
 	p.AddCollector(
