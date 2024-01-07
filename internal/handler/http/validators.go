@@ -1,4 +1,4 @@
-package handler
+package http
 
 // metricType тип метрики
 type metricType string

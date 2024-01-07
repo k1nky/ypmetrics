@@ -1,5 +1,5 @@
-// Пакет apiclient реализует клиент для работы с сервером сбора метрик.
-package apiclient
+// Пакет http реализует http клиент для работы с сервером сбора метрик.
+package http
 
 import (
 	"crypto/rsa"
@@ -12,7 +12,9 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
-	"github.com/k1nky/ypmetrics/internal/apiclient/middleware"
+	"github.com/k1nky/ypmetrics/internal/client/http/middleware"
+	"github.com/k1nky/ypmetrics/internal/client/logger"
+	clientnet "github.com/k1nky/ypmetrics/internal/client/net"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/protocol"
 	"github.com/k1nky/ypmetrics/internal/retrier"
@@ -34,12 +36,6 @@ var (
 	ErrUnexpectedResponse = errors.New("unexpected response")
 )
 
-type clientLogger interface {
-	Errorf(string, ...interface{})
-	Debugf(string, ...interface{})
-	Warnf(string, ...interface{})
-}
-
 // Client http-клиент для сервера сбора метрик. Клиент может повторять запросы, которые не удалось доставить.
 type Client struct {
 	// EndpointURL URL сервера сбора метрик в формате <протокол>://<хост>[:порт].
@@ -57,7 +53,7 @@ type Client struct {
 //			Debugf(string, ...interface{})
 //			Warnf(string, ...interface{})
 //	}
-func New(url string, l clientLogger) *Client {
+func New(url string, l logger.Logger) *Client {
 	if !strings.HasPrefix(url, "http") {
 		url = "http://" + url
 	}
@@ -77,6 +73,10 @@ func New(url string, l clientLogger) *Client {
 	//	Недостаток в таком подходе - необходимость перечитывать тело запроса в каждой middleware, которая использует тело для своих целей.
 	cli.httpclient.SetPreRequestHook(cli.callMiddlewares)
 	return cli
+}
+
+func (c *Client) Close() error {
+	return nil
 }
 
 // PushMetric отправляет метрику типа typ с именем name и значением value на сервер.
@@ -164,8 +164,9 @@ func (c *Client) callMiddlewares(cli *resty.Client, r *http.Request) error {
 }
 
 // newRequest это shortcut для создания нового запроса.
-func (c *Client) newRequest() *resty.Request {
-	return c.httpclient.R().SetHeader("accept-encoding", "gzip")
+func (c *Client) newRequest() (*resty.Request, error) {
+	ip, err := clientnet.RetriveClientAddress()
+	return c.httpclient.R().SetHeader("accept-encoding", "gzip").SetHeader("x-real-ip", ip.String()), err
 }
 
 // Отправляет POST запрос по пути path с типом контента contentType и телом body.
@@ -178,7 +179,11 @@ func (c *Client) postData(path string, contentType string, body interface{}) (er
 		return err
 	}
 	// формируем запрос
-	request := c.newRequest().SetHeader("content-type", contentType).SetBody(body)
+	request, err := c.newRequest()
+	if err != nil {
+		return err
+	}
+	request.SetHeader("content-type", contentType).SetBody(body)
 	request.Method = http.MethodPost
 	request.URL = requestURL
 	if resp, err = c.send(request); err != nil {

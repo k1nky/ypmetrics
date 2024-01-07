@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package internal.proto;
+
+option go_package = "github.com/k1nky/ypmetrics/internal/proto";
+
+enum Type {
+    COUNTER = 0;
+    GAUGE = 1;
+}
+
+message UpdateMetricRequest {
+  string name = 1;
+  Type type = 2;
+  int64 delta = 3;
+  double value = 4;
+}
+
+message UpdateMetricsRequest {
+    repeated UpdateMetricRequest mertics = 1;
+}
+
+
+message UpdateMetricsResponse {}
+
+service Metrics {
+    rpc UpdateMetric(UpdateMetricRequest) returns (UpdateMetricsResponse);
+    rpc UpdateMetrics(stream UpdateMetricsRequest) returns (UpdateMetricsResponse);
+}

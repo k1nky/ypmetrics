@@ -1,4 +1,4 @@
-package apiclient
+package http
 
 import (
 	"bytes"
@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/stretchr/testify/assert"
-
+	clientnet "github.com/k1nky/ypmetrics/internal/client/net"
 	"github.com/k1nky/ypmetrics/internal/entities/metric"
 	"github.com/k1nky/ypmetrics/internal/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNew(t *testing.T) {
@@ -244,4 +244,11 @@ func TestClientPushMetrics(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRetriveHostAddress(t *testing.T) {
+	got, err := clientnet.RetriveClientAddress()
+	assert.NoError(t, err)
+	assert.NotNil(t, got)
+	assert.NotEqual(t, got[0], 127)
 }

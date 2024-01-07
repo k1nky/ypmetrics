@@ -29,12 +29,16 @@ func TestParseFlags(t *testing.T) {
 				DatabaseDSN:        "",
 				LogLevel:           "info",
 				Key:                "",
+				TrustedSubnet:      "",
+				CryptoKey:          "",
+				EnableProfiling:    false,
+				GRPCAddress:        "",
 			},
 			wantErr: false,
 		},
 		{
 			name:      "Only arguments",
-			osargs:    []string{"server", "-a", ":8090", "-i", "10", "-r", "false", "-f", "/tmp/123", "-d", "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable", "--log-level", "error", "-k", "mysecret"},
+			osargs:    []string{"server", "-a", ":8090", "-i", "10", "-r", "false", "-f", "/tmp/123", "-d", "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable", "--log-level", "error", "-k", "mysecret", "-t", "192.168.0.0/16"},
 			env:       map[string]string{},
 			jsonValue: nil,
 			want: Keeper{
@@ -45,6 +49,7 @@ func TestParseFlags(t *testing.T) {
 				DatabaseDSN:        "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable",
 				LogLevel:           "error",
 				Key:                "mysecret",
+				TrustedSubnet:      "192.168.0.0/16",
 			},
 			wantErr: false,
 		},
@@ -59,6 +64,7 @@ func TestParseFlags(t *testing.T) {
 				"DATABASE_DSN":      "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable",
 				"LOG_LEVEL":         "debug",
 				"KEY":               "mysecret",
+				"TRUSTED_SUBNET":    "192.168.0.0/16",
 			},
 			jsonValue: nil,
 			want: Keeper{
@@ -69,6 +75,7 @@ func TestParseFlags(t *testing.T) {
 				DatabaseDSN:        "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable",
 				LogLevel:           "debug",
 				Key:                "mysecret",
+				TrustedSubnet:      "192.168.0.0/16",
 			},
 			wantErr: false,
 		},
@@ -84,7 +91,8 @@ func TestParseFlags(t *testing.T) {
 					"restore": false,
 					"database_dsn": "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable",
 					"log_level": "debug",
-					"key": "mysecret"
+					"key": "mysecret",
+					"trusted_subnet": "192.168.0.0/16"
 				}
 			`),
 			want: Keeper{
@@ -95,6 +103,7 @@ func TestParseFlags(t *testing.T) {
 				DatabaseDSN:        "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable",
 				LogLevel:           "debug",
 				Key:                "mysecret",
+				TrustedSubnet:      "192.168.0.0/16",
 			},
 			wantErr: false,
 		},
@@ -151,7 +160,7 @@ func TestParseFlags(t *testing.T) {
 			jsonValue: []byte(`
 				{
 					"address": "127.0.0.1:9002",
-					"store_interval": 
+					"store_interval":
 					"key": "mysecret"
 				}
 			`),
@@ -162,6 +171,14 @@ func TestParseFlags(t *testing.T) {
 			name:      "With invalid evironment variable and argument value",
 			osargs:    []string{"server", "-a", "127.0.0.2/8000"},
 			env:       map[string]string{"ADDRESS": "127.0.0.1/8000"},
+			jsonValue: nil,
+			want:      Keeper{},
+			wantErr:   true,
+		},
+		{
+			name:      "With invalid trusted subnet",
+			osargs:    []string{"server"},
+			env:       map[string]string{"TRUSTED_SUBNET": "192.168.0.0/222"},
 			jsonValue: nil,
 			want:      Keeper{},
 			wantErr:   true,
